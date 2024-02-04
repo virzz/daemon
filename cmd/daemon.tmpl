@@ -1,0 +1,52 @@
+package main
+
+import (
+	"fmt"
+	{{ if .Signal -}}
+	"os"
+	"os/signal"
+	"syscall"
+	{{- end }}
+	
+	"github.com/virzz/daemon"
+)
+
+const (
+	name        = "{{.Name}}"
+	description = "{{.Description}}"
+	author      = "{{.Author}}"
+)
+
+var (
+	Version string   = "latest"
+	Revsion	string	 = "unknown"
+)
+
+func Action() (string, error) {
+	{{ if .Signal -}}
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+	{{- end }}
+	// TODO: Add your code here
+	{{ if .Signal -}}
+	killSignal := <-interrupt
+	if killSignal == os.Interrupt {
+		return "Daemon was interrupted by system signal", nil
+	}
+	return "Daemon was killed", nil
+	{{- else -}}
+	return "Daemon was shutdown", nil
+	{{- end }}
+}
+
+func main() {
+	_, err := daemon.New(name, description, Version, author)
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return
+	}
+	daemon.Execute(func() error {
+		_, err := Action()
+		return err
+	})
+}
