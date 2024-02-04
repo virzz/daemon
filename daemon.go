@@ -26,18 +26,17 @@ func (r *Daemon) Name() string             { return r.name }
 func (r *Daemon) Description() string      { return r.desc }
 func (r *Daemon) Author() string           { return r.author }
 func (r *Daemon) Version() (string, error) { return r.version, nil }
-
-func (linux *Daemon) servicePath() string {
-	return "/etc/systemd/system/" + linux.name + ".service"
+func (r *Daemon) servicePath() string {
+	return "/etc/systemd/system/" + r.name + ".service"
 }
 
-func (linux *Daemon) isInstalled() bool {
-	_, err := os.Stat(linux.servicePath())
+func (r *Daemon) isInstalled() bool {
+	_, err := os.Stat(r.servicePath())
 	return err == nil
 }
 
-func (linux *Daemon) checkRunning() (string, bool) {
-	output, err := exec.Command("systemctl", "status", linux.name+".service").Output()
+func (r *Daemon) checkRunning() (string, bool) {
+	output, err := exec.Command("systemctl", "status", r.name+".service").Output()
 	if err == nil {
 		if matched, err := regexp.MatchString("Active: active", string(output)); err == nil && matched {
 			reg := regexp.MustCompile("Main PID: ([0-9]+)")
@@ -51,23 +50,23 @@ func (linux *Daemon) checkRunning() (string, bool) {
 	return "Service is stopped", false
 }
 
-func (linux *Daemon) Install(args ...string) (string, error) {
-	installAction := "Install " + linux.desc + ":"
+func (r *Daemon) Install(args ...string) (string, error) {
+	installAction := "Install " + r.desc + ":"
 	if ok, err := checkPrivileges(); !ok {
 		return installAction + failed, err
 	}
-	if linux.isInstalled() {
+	if r.isInstalled() {
 		return installAction + failed, ErrAlreadyInstalled
 	}
-	srvPath := linux.servicePath()
-	if linux.template != "" {
-		linux.template = systemDConfig
+	srvPath := r.servicePath()
+	if r.template != "" {
+		r.template = systemDConfig
 	}
-	if err := templateParse("systemVConfig", linux.GetTemplate(), srvPath, templateData{
-		Name:         linux.name,
-		Description:  linux.desc,
-		Author:       linux.author,
-		Dependencies: strings.Join(linux.deps, " "),
+	if err := templateParse("systemVConfig", r.GetTemplate(), srvPath, templateData{
+		Name:         r.name,
+		Description:  r.desc,
+		Author:       r.author,
+		Dependencies: strings.Join(r.deps, " "),
 		Args:         strings.Join(args, " "),
 	}); err != nil {
 		return installAction + failed, err
@@ -75,104 +74,104 @@ func (linux *Daemon) Install(args ...string) (string, error) {
 	if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
 		return installAction + failed, err
 	}
-	if err := exec.Command("systemctl", "enable", linux.name+".service").Run(); err != nil {
+	if err := exec.Command("systemctl", "enable", r.name+".service").Run(); err != nil {
 		return installAction + failed, err
 	}
 	return installAction + success, nil
 }
 
 // Remove the service
-func (linux *Daemon) Remove() (string, error) {
-	removeAction := "Removing " + linux.desc + ":"
+func (r *Daemon) Remove() (string, error) {
+	removeAction := "Removing " + r.desc + ":"
 	if ok, err := checkPrivileges(); !ok {
 		return removeAction + failed, err
 	}
-	if !linux.isInstalled() {
+	if !r.isInstalled() {
 		return removeAction + failed, ErrNotInstalled
 	}
-	if err := exec.Command("systemctl", "disable", linux.name+".service").Run(); err != nil {
+	if err := exec.Command("systemctl", "disable", r.name+".service").Run(); err != nil {
 		return removeAction + failed, err
 	}
-	if err := os.Remove(linux.servicePath()); err != nil {
+	if err := os.Remove(r.servicePath()); err != nil {
 		return removeAction + failed, err
 	}
 	return removeAction + success, nil
 }
 
 // Start the service
-func (linux *Daemon) Start() (string, error) {
-	startAction := "Starting " + linux.desc + ":"
+func (r *Daemon) Start() (string, error) {
+	startAction := "Starting " + r.desc + ":"
 	if ok, err := checkPrivileges(); !ok {
 		return startAction + failed, err
 	}
-	if !linux.isInstalled() {
+	if !r.isInstalled() {
 		return startAction + failed, ErrNotInstalled
 	}
-	if _, ok := linux.checkRunning(); ok {
+	if _, ok := r.checkRunning(); ok {
 		return startAction + failed, ErrAlreadyRunning
 	}
-	if err := exec.Command("systemctl", "start", linux.name+".service").Run(); err != nil {
+	if err := exec.Command("systemctl", "start", r.name+".service").Run(); err != nil {
 		return startAction + failed, err
 	}
 	return startAction + success, nil
 }
 
 // Stop the service
-func (linux *Daemon) Stop() (string, error) {
-	stopAction := "Stopping " + linux.desc + ":"
+func (r *Daemon) Stop() (string, error) {
+	stopAction := "Stopping " + r.desc + ":"
 	if ok, err := checkPrivileges(); !ok {
 		return stopAction + failed, err
 	}
-	if !linux.isInstalled() {
+	if !r.isInstalled() {
 		return stopAction + failed, ErrNotInstalled
 	}
-	if _, ok := linux.checkRunning(); ok {
+	if _, ok := r.checkRunning(); ok {
 		return stopAction + failed, ErrAlreadyRunning
 	}
-	if err := exec.Command("systemctl", "stop", linux.name+".service").Run(); err != nil {
+	if err := exec.Command("systemctl", "stop", r.name+".service").Run(); err != nil {
 		return stopAction + failed, err
 	}
 	return stopAction + success, nil
 }
 
 // Start the service
-func (linux *Daemon) Restart() (string, error) {
-	restartAction := "Restarting " + linux.desc + ":"
+func (r *Daemon) Restart() (string, error) {
+	restartAction := "Restarting " + r.desc + ":"
 	if ok, err := checkPrivileges(); !ok {
 		return restartAction + failed, err
 	}
-	if !linux.isInstalled() {
+	if !r.isInstalled() {
 		return restartAction + failed, ErrNotInstalled
 	}
-	if _, ok := linux.checkRunning(); ok {
+	if _, ok := r.checkRunning(); ok {
 		return restartAction + failed, ErrAlreadyRunning
 	}
-	if err := exec.Command("systemctl", "restart", linux.name+".service").Run(); err != nil {
+	if err := exec.Command("systemctl", "restart", r.name+".service").Run(); err != nil {
 		return restartAction + failed, err
 	}
 	return restartAction + success, nil
 }
 
 // Status - Get service status
-func (linux *Daemon) Status() (string, error) {
+func (r *Daemon) Status() (string, error) {
 	if ok, err := checkPrivileges(); !ok {
 		return "", err
 	}
-	if !linux.isInstalled() {
+	if !r.isInstalled() {
 		return statNotInstalled, ErrNotInstalled
 	}
-	statusAction, _ := linux.checkRunning()
+	statusAction, _ := r.checkRunning()
 	return statusAction, nil
 }
 
-func (linux *Daemon) GetTemplate() string {
-	if linux.template == "" {
-		linux.template = systemDConfig
+func (r *Daemon) GetTemplate() string {
+	if r.template == "" {
+		r.template = systemDConfig
 	}
-	return linux.template
+	return r.template
 }
 
-func (linux *Daemon) SetTemplate(tpl string) error {
-	linux.template = tpl
+func (r *Daemon) SetTemplate(tpl string) error {
+	r.template = tpl
 	return nil
 }
