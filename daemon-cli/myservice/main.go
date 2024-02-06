@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/virzz/daemon"
 )
 
@@ -18,7 +19,7 @@ var (
 	dependencies = []string{""}
 )
 
-func Action() error {
+func Action(cmd *cobra.Command, args []string) error {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 	for {
