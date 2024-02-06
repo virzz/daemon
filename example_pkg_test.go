@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/spf13/cobra"
 	"github.com/virzz/daemon"
 )
 
@@ -19,12 +20,12 @@ var (
 )
 
 // Action defines daemon actions
-func Action() (string, error) {
+func Action(cmd *cobra.Command, args []string) error {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 	listener, err := net.Listen("tcp", port)
 	if err != nil {
-		return "Possibly was a problem with the port binding", err
+		return err
 	}
 	listen := make(chan net.Conn, 100)
 	go func(listener net.Listener, listen chan<- net.Conn) {
@@ -49,12 +50,9 @@ func Action() (string, error) {
 					client.Write(buf[:numbytes])
 				}
 			}(conn)
-		case killSignal := <-interrupt:
+		case <-interrupt:
 			listener.Close()
-			if killSignal == os.Interrupt {
-				return "Daemon was interrupted by system signal", nil
-			}
-			return "Daemon was killed", nil
+			return nil
 		}
 	}
 }
@@ -65,8 +63,5 @@ func Example_myService() {
 		fmt.Println("Error: ", err)
 		os.Exit(1)
 	}
-	daemon.Execute(func() error {
-		_, err := Action()
-		return err
-	})
+	daemon.Execute(Action)
 }

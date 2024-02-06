@@ -9,8 +9,13 @@ import (
 	"github.com/manifoldco/promptui"
 )
 
-//go:embed daemon.tmpl
-var tmpl string
+var (
+	//go:embed daemon.tmpl
+	daemonTmpl string
+
+	//go:embed action.tmpl
+	actionTmpl string
+)
 
 type Opt struct {
 	Name, Description, Author string
@@ -59,18 +64,24 @@ func main() {
 		opt.Signal = true
 	}
 
-	tmpl, err := template.New("daemon").Parse(tmpl)
-	if err != nil {
-		fmt.Printf("Parse template failed %v\n", err)
-		return
-	}
 	f, err := os.Create("main.go")
 	if err != nil {
 		fmt.Printf("Create file failed %v\n", err)
 		return
 	}
+	err = template.Must(template.New("daemon").Parse(daemonTmpl)).Execute(f, opt)
+	if err != nil {
+		fmt.Printf("Execute template failed %v\n", err)
+		return
+	}
+	f.Close()
+	f, err = os.Create("action.go")
+	if err != nil {
+		fmt.Printf("Create file failed %v\n", err)
+		return
+	}
 	defer f.Close()
-	err = tmpl.ExecuteTemplate(f, "daemon", opt)
+	err = template.Must(template.New("daemon").Parse(actionTmpl)).Execute(f, opt)
 	if err != nil {
 		fmt.Printf("Execute template failed %v\n", err)
 		return

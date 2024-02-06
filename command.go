@@ -8,17 +8,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var rootCmd *cobra.Command
+var rootCmd = &cobra.Command{
+	CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
+	RunE: func(_ *cobra.Command, _ []string) error {
+		panic("daemon action not implemented")
+	},
+}
 
-type ActionFunc func() error
+type ActionFunc func(cmd *cobra.Command, args []string) error
 
 func AddCommand(cmds ...*cobra.Command) { rootCmd.AddCommand(cmds...) }
 
+func RootCmd() *cobra.Command { return rootCmd }
+
 func Execute(action ...ActionFunc) {
 	if len(action) > 0 && action[0] != nil {
-		rootCmd.RunE = func(*cobra.Command, []string) error {
-			return action[0]()
-		}
+		rootCmd.RunE = action[0]
 	}
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -36,13 +41,9 @@ func printResult(msg string, err error) {
 
 func wrapCmd(d *Daemon) *Daemon {
 	v, _ := d.Version()
-	rootCmd = &cobra.Command{
-		Use: d.Name(), Short: d.Description(), Version: v,
-		CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
-		RunE: func(_ *cobra.Command, _ []string) error {
-			panic("daemon action not implemented")
-		},
-	}
+	rootCmd.Use = d.Name()
+	rootCmd.Short = d.Description()
+	rootCmd.Version = v
 	// Daemon commands
 	rootCmd.AddCommand(
 		&cobra.Command{
