@@ -125,8 +125,8 @@ func (r *Daemon) Stop() (string, error) {
 	if !r.isInstalled() {
 		return stopAction + failed, ErrNotInstalled
 	}
-	if _, ok := r.checkRunning(); ok {
-		return stopAction + failed, ErrAlreadyRunning
+	if _, ok := r.checkRunning(); !ok {
+		return stopAction + failed, ErrAlreadyStopped
 	}
 	if err := exec.Command("systemctl", "stop", r.name+".service").Run(); err != nil {
 		return stopAction + failed, err
@@ -143,8 +143,8 @@ func (r *Daemon) Restart() (string, error) {
 	if !r.isInstalled() {
 		return restartAction + failed, ErrNotInstalled
 	}
-	if _, ok := r.checkRunning(); ok {
-		return restartAction + failed, ErrAlreadyRunning
+	if _, ok := r.checkRunning(); !ok {
+		return restartAction + failed, ErrAlreadyStopped
 	}
 	if err := exec.Command("systemctl", "restart", r.name+".service").Run(); err != nil {
 		return restartAction + failed, err
