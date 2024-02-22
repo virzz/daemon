@@ -3,6 +3,7 @@ package daemon
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -10,6 +11,14 @@ import (
 
 var rootCmd = &cobra.Command{
 	CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		if cmd.Flag("name").Changed {
+			std.name, _ = cmd.Flags().GetString("name")
+		}
+		if cmd.Flag("description").Changed {
+			std.desc, _ = cmd.Flags().GetString("description")
+		}
+	},
 	RunE: func(_ *cobra.Command, _ []string) error {
 		panic("daemon action not implemented")
 	},
@@ -44,6 +53,9 @@ func wrapCmd(d *Daemon) *Daemon {
 	rootCmd.Use = d.Name()
 	rootCmd.Short = d.Description()
 	rootCmd.Version = v
+	// Flags
+	rootCmd.PersistentFlags().StringP("name", "n", "", "Modiry systemd service name")
+	rootCmd.PersistentFlags().StringP("description", "d", "", "Modiry systemd service description")
 	// Daemon commands
 	rootCmd.AddCommand(
 		&cobra.Command{
@@ -87,6 +99,24 @@ func wrapCmd(d *Daemon) *Daemon {
 			Use: "version", Short: "Version daemon", Aliases: []string{"v"},
 			Run: func(_ *cobra.Command, _ []string) {
 				printResult(d.Version())
+			},
+		},
+		&cobra.Command{
+			Hidden: true,
+			Use:    "systemd", Short: "systemd service",
+			RunE: func(_ *cobra.Command, args []string) error {
+				buf, err := templateParseData("systemVConfig", d.GetTemplate(), templateData{
+					Name:         d.name,
+					Description:  d.desc,
+					Author:       d.author,
+					Dependencies: strings.Join(d.deps, " "),
+					Args:         strings.Join(args, " "),
+				})
+				if err != nil {
+					return err
+				}
+				fmt.Println("servicePath = ", d.servicePath(), "\n\n", string(buf))
+				return nil
 			},
 		},
 	)
