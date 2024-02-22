@@ -7,10 +7,12 @@ import (
 	"strings"
 )
 
+var std *Daemon
+
 // New - Create a new daemon
 func New(name, desc, version, author string, deps ...string) (*Daemon, error) {
-	d := &Daemon{name: name, desc: desc, version: version, author: author, deps: deps}
-	return wrapCmd(d), nil
+	std = &Daemon{name: name, desc: desc, version: version, author: author, deps: deps}
+	return wrapCmd(std), nil
 }
 
 type Daemon struct {
