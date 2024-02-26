@@ -7,18 +7,12 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
 
 var rootCmd = &cobra.Command{
 	CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		if cmd.Flag("name").Changed {
-			std.name, _ = cmd.Flags().GetString("name")
-		}
-		if cmd.Flag("description").Changed {
-			std.desc, _ = cmd.Flags().GetString("description")
-		}
-	},
 	RunE: func(_ *cobra.Command, _ []string) error {
 		panic("daemon action not implemented")
 	},
@@ -53,9 +47,15 @@ func wrapCmd(d *Daemon) *Daemon {
 	rootCmd.Use = d.Name()
 	rootCmd.Short = d.Description()
 	rootCmd.Version = v
-	// Flags
-	rootCmd.PersistentFlags().StringP("name", "n", "", "Modiry systemd service name")
-	rootCmd.PersistentFlags().StringP("description", "d", "", "Modiry systemd service description")
+	rootCmd.Flags().VisitAll(func(f *pflag.Flag) { viper.BindPFlag(f.Name, f) })
+	viper.AddConfigPath(".")
+	viper.AddConfigPath("/etc/" + rootCmd.Use)
+	viper.AddConfigPath("$HOME/.config/" + rootCmd.Use)
+	viper.SetConfigName(rootCmd.Use)
+	viper.SetConfigType("yaml")
+	viper.ReadInConfig()
+	viper.AutomaticEnv()
+
 	// Daemon commands
 	rootCmd.AddCommand(
 		&cobra.Command{
