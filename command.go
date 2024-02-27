@@ -47,7 +47,9 @@ func wrapCmd(d *Daemon) *Daemon {
 	rootCmd.Use = d.Name()
 	rootCmd.Short = d.Description()
 	rootCmd.Version = v
-	rootCmd.Flags().VisitAll(func(f *pflag.Flag) { viper.BindPFlag(f.Name, f) })
+	rootCmd.Flags().VisitAll(func(f *pflag.Flag) {
+		viper.BindPFlag(strings.ReplaceAll(f.Name, "-", "."), f)
+	})
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("/etc/" + rootCmd.Use)
 	viper.AddConfigPath("$HOME/.config/" + rootCmd.Use)
