@@ -2,23 +2,44 @@ package main
 
 import (
 	"fmt"
-
+	{{ if .Signal -}}
+	"os"
+	"os/signal"
+	"syscall"
+	{{- end }}
+	
+	"github.com/spf13/cobra"
 	"github.com/virzz/daemon"
-)
-
-const (
-	name        = "{{.Name}}"
-	description = "{{.Description}}"
-	author      = "{{.Author}}"
 )
 
 var (
 	Version string = "latest"
 	Revsion string = "unknown"
+
+	rootCmd = daemon.RootCmd()
 )
 
+const (
+	name        = "{{.Name}}"
+	description = "{{.Description}}"
+)
+
+func Action(cmd *cobra.Command, args []string) error {
+	{{ if .Signal -}}
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+	{{- end }}
+	// TODO: Add your code here
+	{{ if .Signal -}}
+	<-interrupt
+	{{- end }}
+	return nil
+}
+
 func main() {
-	_, err := daemon.New(name, description, Version, author)
+	rootCmd.Flags().BoolP("debug", "d", false, "debug mode")
+
+	_, err := daemon.New(name, description, Version)
 	if err != nil {
 		fmt.Println("Error: ", err)
 		return
