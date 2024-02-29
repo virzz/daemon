@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,11 +13,9 @@ import (
 )
 
 var (
-	name         = "myservice"
-	version      = "1.0.0"
-	description  = "My Test Service"
-	author       = "陌竹 <mozhu233@outlook.com>"
-	dependencies = []string{""}
+	name        = "myservice"
+	version     = "1.0.0"
+	description = "My Test Service"
 )
 
 func Action(cmd *cobra.Command, args []string) error {
@@ -24,22 +23,21 @@ func Action(cmd *cobra.Command, args []string) error {
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 	for {
 		select {
-		case <-time.After(5 * time.Second):
-			fmt.Println("Timeout:")
-			return nil
+		case <-time.After(1 * time.Second):
+			log.Println("Running...")
 		case killSignal := <-interrupt:
 			fmt.Println("Got signal:", killSignal)
 			if killSignal == os.Interrupt {
+				fmt.Println("Daemon was killed")
 				return nil
 			}
-			fmt.Println("Daemon was killed")
 			return nil
 		}
 	}
 }
 
 func main() {
-	_, err := daemon.New(name, description, version, author, dependencies...)
+	_, err := daemon.New(name, description, version)
 	if err != nil {
 		fmt.Println("Error: ", err)
 		os.Exit(1)
