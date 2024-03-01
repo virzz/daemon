@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/virzz/daemon"
+	"github.com/virzz/daemon/v2"
 )
 
 var (
