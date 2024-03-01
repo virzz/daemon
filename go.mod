@@ -1,4 +1,4 @@
-module github.com/virzz/daemon
+module github.com/virzz/daemon/v2
 
 go 1.21.6
 
