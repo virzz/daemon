@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	systemd "github.com/coreos/go-systemd/v22/dbus"
@@ -28,64 +29,81 @@ type Daemon struct {
 	version string
 }
 
-func (r *Daemon) Version() string     { return r.version }
-func (r *Daemon) Name() string        { return r.name }
-func (r *Daemon) Description() string { return r.desc }
+func (d *Daemon) Version() string     { return d.version }
+func (d *Daemon) Name() string        { return d.name }
+func (d *Daemon) Description() string { return d.desc }
 
-func (r *Daemon) Install(args ...string) error {
-	vlog.Log.Info("Install... " + r.name)
+func (d *Daemon) Install(args ...string) error {
+	vlog.Info("Install... " + d.name)
 	execPath, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	buf, err := createUnit(r.name, r.desc, execPath, args...)
+	buf, err := CreateUnit(d.name, d.desc, execPath, args...)
 	if err != nil {
 		return err
 	}
-	os.WriteFile("/etc/systemd/system/"+r.name+"@.service", buf, 0644)
+	os.WriteFile("/etc/systemd/system/"+d.name+"@.service", buf, 0644)
 	ctx := context.Background()
 	conn, err := systemd.NewSystemConnectionContext(ctx)
 	if err != nil {
 		return err
 	}
-	vlog.Log.Info("Installed " + r.name)
+	vlog.Info("Installed " + d.name)
 	return conn.ReloadContext(ctx)
 }
 
 // Remove the service
-func (r *Daemon) Remove() error {
-	vlog.Log.Info("Removing... " + r.name)
-	err := r.Stop(true)
+func (d *Daemon) Remove() error {
+	vlog.Info("Removing... " + d.name)
+	err := d.Stop(true)
 	if err != nil {
-		vlog.Log.Warn(err.Error())
+		vlog.Warn(err.Error())
 	}
-	err = os.Remove("/etc/systemd/system/" + r.name + "@.service")
+	err = os.Remove("/etc/systemd/system/" + d.name + "@.service")
 	if err != nil {
 		return err
 	}
-	vlog.Log.Info("Removed " + r.name)
+	vlog.Info("Removed " + d.name)
 	return nil
 }
 
 // Start the service
-func (r *Daemon) Start(num int, tags ...string) error {
+func (d *Daemon) Start(num int, tags ...string) error {
 	ctx := context.Background()
 	conn, err := systemd.NewSystemConnectionContext(ctx)
 	if err != nil {
 		return err
 	}
+	recv := make(chan string, 1)
 	if num > 0 {
 		for i := 1; i <= num; i++ {
-			_, err = conn.StartUnitContext(ctx, fmt.Sprintf("%s@%d.service", r.name, i), "fail", nil)
+			name := d.name + "@" + strconv.Itoa(i) + ".service"
+			_, err = conn.StartUnitContext(ctx, name, "fail", recv)
 			if err != nil {
-				return err
+				vlog.Warn(err.Error())
+				continue
+			}
+			v := <-recv
+			if v == "failed" {
+				vlog.Error("Started [ " + name + " ] " + v)
+			} else {
+				vlog.Info("Started [ " + name + " ] " + v)
 			}
 		}
 	} else if len(tags) > 0 {
 		for _, tag := range tags {
-			_, err = conn.StartUnitContext(ctx, r.name+"@"+tag+".service", "fail", nil)
+			name := d.name + "@" + tag + ".service"
+			_, err = conn.StartUnitContext(ctx, name, "fail", recv)
 			if err != nil {
-				vlog.Log.Warn(err.Error())
+				vlog.Warn(err.Error())
+				continue
+			}
+			v := <-recv
+			if v == "failed" {
+				vlog.Error("Started [ " + name + " ] " + v)
+			} else {
+				vlog.Info("Started [ " + name + " ] " + v)
 			}
 		}
 	}
@@ -93,28 +111,45 @@ func (r *Daemon) Start(num int, tags ...string) error {
 }
 
 // Stop the service
-func (r *Daemon) Stop(all bool, tags ...string) error {
+func (d *Daemon) Stop(all bool, tags ...string) error {
 	ctx := context.Background()
 	conn, err := systemd.NewSystemConnectionContext(ctx)
 	if err != nil {
 		return err
 	}
 	if all {
-		items, err := r.Status(false)
+		items, err := d.Status(false)
 		if err != nil {
 			return err
 		}
+		recv := make(chan string, 1)
 		for _, item := range items {
-			_, err = conn.StopUnitContext(ctx, item.Name, "fail", nil)
+			_, err = conn.StopUnitContext(ctx, item.Name, "fail", recv)
 			if err != nil {
-				return err
+				vlog.Warn(err.Error())
+				continue
+			}
+			v := <-recv
+			if v == "failed" {
+				vlog.Error("Stop [ " + item.Name + "] " + v)
+			} else {
+				vlog.Info("Stop [ " + item.Name + " ] " + v)
 			}
 		}
 	} else if len(tags) > 0 {
+		recv := make(chan string, 1)
 		for _, tag := range tags {
-			_, err = conn.StopUnitContext(ctx, r.name+"@"+tag+".service", "fail", nil)
+			name := d.name + "@" + tag + ".service"
+			_, err = conn.StopUnitContext(ctx, name, "fail", recv)
 			if err != nil {
-				vlog.Log.Warn(err.Error())
+				vlog.Warn(err.Error())
+				continue
+			}
+			v := <-recv
+			if v == "failed" {
+				vlog.Error("Stop [" + name + "] " + v)
+			} else {
+				vlog.Info("Stop [ " + name + " ] " + v)
 			}
 		}
 	}
@@ -122,14 +157,14 @@ func (r *Daemon) Stop(all bool, tags ...string) error {
 }
 
 // Kill the service
-func (r *Daemon) Kill(all bool, tags ...string) error {
+func (d *Daemon) Kill(all bool, tags ...string) error {
 	ctx := context.Background()
 	conn, err := systemd.NewSystemConnectionContext(ctx)
 	if err != nil {
 		return err
 	}
 	if all {
-		items, err := r.Status(false)
+		items, err := d.Status(false)
 		if err != nil {
 			return err
 		}
@@ -138,35 +173,97 @@ func (r *Daemon) Kill(all bool, tags ...string) error {
 		}
 	} else if len(tags) > 0 {
 		for _, tag := range tags {
-			conn.KillUnitContext(ctx, r.name+"@"+tag+".service", 9)
+			conn.KillUnitContext(ctx, d.name+"@"+tag+".service", 9)
 		}
 	}
 	return nil
 }
 
-// Start the service
-func (r *Daemon) Restart(all bool, tags ...string) error {
+// Restart the service
+func (d *Daemon) Restart(all bool, tags ...string) error {
 	ctx := context.Background()
 	conn, err := systemd.NewSystemConnectionContext(ctx)
 	if err != nil {
 		return err
 	}
 	if all {
-		items, err := r.Status(false)
+		items, err := d.Status(false)
 		if err != nil {
 			return err
 		}
+		recv := make(chan string, 1)
 		for _, item := range items {
-			_, err = conn.RestartUnitContext(ctx, item.Name, "fail", nil)
+			_, err = conn.RestartUnitContext(ctx, item.Name, "fail", recv)
 			if err != nil {
-				return err
+				vlog.Warn(err.Error())
+				continue
+			}
+			v := <-recv
+			if v == "failed" {
+				vlog.Error("Restarted [ " + item.Name + "] " + v)
+			} else {
+				vlog.Info("Restarted [ " + item.Name + " ] " + v)
 			}
 		}
 	} else if len(tags) > 0 {
+		recv := make(chan string, 1)
 		for _, tag := range tags {
-			_, err = conn.RestartUnitContext(ctx, r.name+"@"+tag+".service", "fail", nil)
+			name := d.name + "@" + tag + ".service"
+			_, err = conn.RestartUnitContext(ctx, name, "fail", recv)
 			if err != nil {
-				vlog.Log.Warn(err.Error())
+				vlog.Warn(err.Error())
+				continue
+			}
+			v := <-recv
+			if v == "failed" {
+				vlog.Error("Restarted [ " + name + " ] " + v)
+			} else {
+				vlog.Info("Restarted [ " + name + " ] " + v)
+			}
+		}
+	}
+	return nil
+}
+
+// Reload the service
+func (d *Daemon) Reload(all bool, tags ...string) error {
+	vlog.Info("Reloading... " + d.name)
+	ctx := context.Background()
+	conn, err := systemd.NewSystemConnectionContext(ctx)
+	if err != nil {
+		return err
+	}
+	if all {
+		items, err := d.Status(false)
+		if err != nil {
+			return err
+		}
+		recv := make(chan string, 1)
+		for _, item := range items {
+			_, err = conn.ReloadOrRestartUnitContext(ctx, item.Name, "fail", recv)
+			if err != nil {
+				return err
+			}
+			v := <-recv
+			if v == "failed" {
+				vlog.Error("Reloaded [ " + item.Name + "] " + v)
+			} else {
+				vlog.Info("Reloaded [ " + item.Name + " ] " + v)
+			}
+		}
+	} else if len(tags) > 0 {
+		recv := make(chan string, 1)
+		for _, tag := range tags {
+			name := d.name + "@" + tag + ".service"
+			_, err = conn.ReloadOrRestartUnitContext(ctx, name, "fail", recv)
+			if err != nil {
+				vlog.Warn(err.Error())
+			}
+			v := <-recv
+			if v == "failed" {
+				vlog.Error("Reloaded [ " + name + " ] " + v)
+			} else {
+				vlog.Info("Reloaded [ " + name + " ] " + v)
 			}
 		}
 	}
@@ -174,52 +271,86 @@ func (r *Daemon) Restart(all bool, tags ...string) error {
 }
 
 // Status - Get service status
-func (r *Daemon) Status(show bool) ([]systemd.UnitStatus, error) {
+func (d *Daemon) Status(show bool) ([]systemd.UnitStatus, error) {
 	ctx := context.Background()
 	conn, err := systemd.NewSystemConnectionContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-	items, err := conn.ListUnitsByPatternsContext(ctx, nil, []string{r.name + "*"})
+	items, err := conn.ListUnitsByPatternsContext(ctx, nil, []string{d.name + "*"})
 	if err != nil {
 		return nil, err
 	}
 	if show {
 		for _, item := range items {
 			if item.SubState == "running" {
-				vlog.Log.Info(item.Name, item.ActiveState, item.SubState)
+				vlog.Info(item.Name, item.ActiveState, item.SubState)
 			} else {
-				vlog.Log.Warn(item.Name, item.ActiveState, item.SubState)
+				vlog.Warn(item.Name, item.ActiveState, item.SubState)
 			}
 		}
 	}
 	return items, nil
 }
 
-func createUnit(binName, desc, path string, args ...string) ([]byte, error) {
+func SetUnitConfig(section, name, value string) {
+	if _, ok := unitConfig[section]; !ok {
+		unitConfig[section] = make(map[string]string)
+	}
+	unitConfig[section][name] = value
+}
+
+var unitConfig = map[string]map[string]string{
+	"Unit": {
+		"Wants": "network.target",
+	},
+	"Service": {
+		"Type":                     "exec",
+		"ExecReload":               "/bin/kill -s HUP $MAINPID", // 发送HUP信号重载服务
+		"Restart":                  "always",                    // 只要不是通过systemctl stop来停止服务，任何情况下都必须要重启服务
+		"RestartSec":               "0",                         // 重启间隔
+		"StartLimitInterval":       "30",                        // 启动尝试间隔
+		"StartLimitBurst":          "10",                        // 最大启动尝试次数
+		"RestartPreventExitStatus": "SIGKILL",                   // kill -9 不重启
+	},
+}
+
+func CreateUnit(binName, desc, path string, args ...string) ([]byte, error) {
 	binName += "@%i"
-	reader := unit.Serialize([]*unit.UnitOption{
-		// [Unit]
-		{Section: "Unit", Name: "Description",
-			Value: strings.ToUpper(binName[:1]) + binName[1:] + " " + desc},
-		{Section: "Unit", Name: "Wants", Value: "network.target"},
-		// [Service]
-		{Section: "Service", Name: "Type", Value: "exec"},
-		{Section: "Service", Name: "WorkingDirectory", Value: filepath.Dir(path)},
-		{Section: "Service", Name: "PIDFile", Value: "/run/" + binName + ".pid"},
-		{Section: "Service", Name: "ExecStartPre", Value: "/bin/rm -f /run/" + binName + ".pid"},
-		{Section: "Service", Name: "ExecStart", Value: path + " --daemon.instance %i " + strings.Join(args, " ")},
-		{Section: "Service", Name: "ExecStartPost", Value: "/bin/bash -c '/bin/systemctl show -p MainPID --value " + binName + " > /run/" + binName + ".pid'"},
-		{Section: "Service", Name: "ExecReload", Value: "/bin/kill -s HUP $MAINPID"},
-		// 只要不是通过systemctl stop来停止服务，任何情况下都必须要重启服务
-		{Section: "Service", Name: "Restart", Value: "always"},
-		// 重启间隔，比异常后等待10(s)再进行启动
-		{Section: "Service", Name: "RestartSec", Value: "10"},
-		// 设置为0表示不限次数重启
-		{Section: "Service", Name: "StartLimitInterval", Value: "0"},
-		// kill -9 不重启
-		{Section: "Service", Name: "RestartPreventExitStatus", Value: "SIGKILL"},
-	})
+	if unitConfig == nil {
+		return nil, fmt.Errorf("unitConfig is nil")
+	}
+	if _, ok := unitConfig["Unit"]; !ok {
+		unitConfig["Unit"] = make(map[string]string)
+	}
+	if _, ok := unitConfig["Unit"]["Description"]; !ok {
+		unitConfig["Unit"]["Description"] = strings.ToUpper(binName[:1]) + binName[1:] + " " + desc
+	}
+	if _, ok := unitConfig["Service"]; !ok {
+		unitConfig["Service"] = make(map[string]string)
+	}
+	if _, ok := unitConfig["Service"]["WorkingDirectory"]; !ok {
+		unitConfig["Service"]["WorkingDirectory"] = filepath.Dir(path)
+	}
+	if _, ok := unitConfig["Service"]["PIDFile"]; !ok {
+		unitConfig["Service"]["PIDFile"] = "/run/" + binName + ".pid"
+	}
+	if _, ok := unitConfig["Service"]["ExecStartPre"]; !ok {
+		unitConfig["Service"]["ExecStartPre"] = "/bin/rm -f /run/" + binName + ".pid"
+	}
+	if _, ok := unitConfig["Service"]["ExecStart"]; !ok {
+		unitConfig["Service"]["ExecStart"] = path + " --daemon.instance %i " + strings.Join(args, " ")
+	}
+	if _, ok := unitConfig["Service"]["ExecStartPost"]; !ok {
+		unitConfig["Service"]["ExecStartPost"] = "/bin/bash -c '/bin/systemctl show -p MainPID --value " + binName + " > /run/" + binName + ".pid'"
+	}
+	data := make([]*unit.UnitOption, 0, 10)
+	for sec, v := range unitConfig {
+		for name, value := range v {
+			data = append(data, &unit.UnitOption{Section: sec, Name: name, Value: value})
+		}
+	}
+	reader := unit.Serialize(data)
 	buf := make([]byte, 1024)
 	n, err := reader.Read(buf)
 	if err != nil {

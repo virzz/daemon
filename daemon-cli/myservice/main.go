@@ -42,5 +42,6 @@ func main() {
 		fmt.Println("Error: ", err)
 		os.Exit(1)
 	}
+	daemon.SetUnitConfig("Service", "Type", "simple")
 	daemon.Execute(Action)
 }

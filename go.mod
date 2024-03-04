@@ -7,7 +7,7 @@ require (
 	github.com/manifoldco/promptui v0.9.0
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.18.2
-	github.com/virzz/vlog v0.0.0-20240220215058-ea18f46f2314
+	github.com/virzz/vlog v0.0.0-20240304052918-5270761cc823
 )
 
 require (

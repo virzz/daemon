@@ -115,6 +115,17 @@ func daemonCommand(d *Daemon) []*cobra.Command {
 	}
 	killCmd.Flags().BoolP("all", "a", false, "Kill all Instances")
 
+	var reloadCmd = &cobra.Command{
+		Use:               "reload",
+		Short:             "Reload daemon",
+		PersistentPreRunE: persistentPreRunE,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			all, _ := cmd.Flags().GetBool("all")
+			return d.Reload(all, args...)
+		},
+	}
+	reloadCmd.Flags().BoolP("all", "a", false, "Reload all Instances")
+
 	var statusCmd = &cobra.Command{
 		Use:               "status",
 		Short:             "Status daemon",
@@ -131,7 +142,7 @@ func daemonCommand(d *Daemon) []*cobra.Command {
 		Short:   "Version daemon",
 		Aliases: []string{"v"},
 		Run: func(_ *cobra.Command, _ []string) {
-			vlog.Log.Info(d.Version())
+			vlog.Info(d.Version())
 		},
 	}
 
@@ -146,7 +157,7 @@ func daemonCommand(d *Daemon) []*cobra.Command {
 				if err != nil {
 					return err
 				}
-				buf, err := createUnit(d.name, d.desc, execPath, args...)
+				buf, err := CreateUnit(d.name, d.desc, execPath, args...)
 				if err != nil {
 					return err
 				}
@@ -154,7 +165,7 @@ func daemonCommand(d *Daemon) []*cobra.Command {
 				return nil
 			}
 			fn := "/etc/systemd/system/" + d.name + "@.service"
-			vlog.Log.Info("filepath = " + fn)
+			vlog.Info("filepath = " + fn)
 			buf, err := os.ReadFile(fn)
 			if err != nil {
 				return err
@@ -165,7 +176,7 @@ func daemonCommand(d *Daemon) []*cobra.Command {
 	}
 	systemdCmd.Flags().BoolP("template", "t", false, "Show template unit service file")
 
-	return []*cobra.Command{installCmd, removeCmd, startCmd, stopCmd,
+	return []*cobra.Command{installCmd, removeCmd, startCmd, stopCmd, reloadCmd,
 		killCmd, restartCmd, statusCmd, versionCmd, systemdCmd}
 }
 
@@ -181,6 +192,6 @@ func Execute(action ActionFunc) {
 	viper.AutomaticEnv()
 	rootCmd.RunE = action
 	if err := rootCmd.Execute(); err != nil {
-		vlog.Log.Error(err.Error())
+		vlog.Error(err.Error())
 	}
 }
