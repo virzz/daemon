@@ -72,6 +72,8 @@ github.com/subosito/gotenv v1.6.0 h1:9NlTDc1FTs4qu0DDq7AEtTPNw6SVm7uBMsUCUjABIf8
 github.com/subosito/gotenv v1.6.0/go.mod h1:Dk4QP5c2W3ibzajGcXpNraDfq2IrhjMIvMSWPKKo0FU=
 github.com/virzz/vlog v0.0.0-20240220215058-ea18f46f2314 h1:eNvgN4mxT2bqfv4qYlCFtzta1uAWG0Q9/Lup02tpkAg=
 github.com/virzz/vlog v0.0.0-20240220215058-ea18f46f2314/go.mod h1:THDbRceJWH1EoViFsQom1MPsSW2piPLsmvFi4rfVMZI=
+github.com/virzz/vlog v0.0.0-20240304052918-5270761cc823 h1:6jO7NcqXvmIxBUGR9B+qBvwMf2Ow7tr3FnotHZlAh+4=
+github.com/virzz/vlog v0.0.0-20240304052918-5270761cc823/go.mod h1:THDbRceJWH1EoViFsQom1MPsSW2piPLsmvFi4rfVMZI=
 go.uber.org/multierr v1.11.0 h1:blXXJkSxSSfBVBlC76pxqeO+LN3aDfLQo+309xJstO0=
 go.uber.org/multierr v1.11.0/go.mod h1:20+QtiLqy0Nd6FdQB9TLXag12DsQkrbs3htMFfDN80Y=
 golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 h1:LfspQV/FYTatPTr/3HzIcmiUFH7PGP+OQ6mgDYo3yuQ=
