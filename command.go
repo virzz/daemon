@@ -136,7 +136,19 @@ func daemonCommand(d *Daemon) []*cobra.Command {
 		Use:               "unit",
 		Short:             "print systemd unit service file",
 		PersistentPreRunE: persistentPreRunE,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if t, _ := cmd.Flags().GetBool("template"); t {
+				execPath, err := os.Executable()
+				if err != nil {
+					return err
+				}
+				buf, err := createUnit(d.name, d.desc, execPath, args...)
+				if err != nil {
+					return err
+				}
+				fmt.Println(string(buf))
+				return nil
+			}
 			fn := "/etc/systemd/system/" + d.name + "@.service"
 			vlog.Log.Info("filepath = " + fn)
 			buf, err := os.ReadFile(fn)
@@ -147,6 +159,7 @@ func daemonCommand(d *Daemon) []*cobra.Command {
 			return nil
 		},
 	}
+	systemdCmd.Flags().BoolP("template", "t", false, "Show template unit service file")
 
 	return []*cobra.Command{installCmd, removeCmd, startCmd, stopCmd,
 		killCmd, restartCmd, statusCmd, versionCmd, systemdCmd}
