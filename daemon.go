@@ -36,10 +36,11 @@ func (r *Daemon) Install(args ...string) error {
 	if err != nil {
 		return err
 	}
-	err = createUnit(r.name, r.desc, execPath, args...)
+	buf, err := createUnit(r.name, r.desc, execPath, args...)
 	if err != nil {
 		return err
 	}
+	os.WriteFile("/etc/systemd/system/"+r.name+"@.service", buf, 0644)
 	ctx := context.Background()
 	conn, err := systemd.NewSystemConnectionContext(ctx)
 	if err != nil {
@@ -193,18 +194,21 @@ func (r *Daemon) Status(show bool) ([]systemd.UnitStatus, error) {
 	return items, nil
 }
 
-func createUnit(binName, desc, path string, args ...string) error {
+func createUnit(binName, desc, path string, args ...string) ([]byte, error) {
+	binName += "@%i"
 	reader := unit.Serialize([]*unit.UnitOption{
 		// [Unit]
 		{Section: "Unit", Name: "Description",
-			Value: strings.ToUpper(binName[:1]) + binName[1:] + " " + desc + " Instance [ %i ]"},
+			Value: strings.ToUpper(binName[:1]) + binName[1:] + " " + desc},
 		{Section: "Unit", Name: "Wants", Value: "network.target"},
 		// [Service]
 		{Section: "Service", Name: "Type", Value: "exec"},
 		{Section: "Service", Name: "WorkingDirectory", Value: filepath.Dir(path)},
-		{Section: "Service", Name: "PIDFile", Value: "/run/" + binName + "@%i.pid"},
-		{Section: "Service", Name: "ExecStartPre", Value: "/bin/rm -f /run/" + binName + "@%i.pid"},
+		{Section: "Service", Name: "PIDFile", Value: "/run/" + binName + ".pid"},
+		{Section: "Service", Name: "ExecStartPre", Value: "/bin/rm -f /run/" + binName + ".pid"},
 		{Section: "Service", Name: "ExecStart", Value: path + " " + strings.Join(args, " ")},
+		{Section: "Service", Name: "ExecStartPost", Value: "/bin/bash -c '/bin/systemctl show -p MainPID --value " + binName + " > /run/" + binName + ".pid'"},
+		{Section: "Service", Name: "ExecReload", Value: "/bin/kill -s HUP $MAINPID"},
 		// 只要不是通过systemctl stop来停止服务，任何情况下都必须要重启服务
 		{Section: "Service", Name: "Restart", Value: "always"},
 		// 重启间隔，比异常后等待10(s)再进行启动
@@ -217,7 +221,7 @@ func createUnit(binName, desc, path string, args ...string) error {
 	buf := make([]byte, 1024)
 	n, err := reader.Read(buf)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return os.WriteFile("/etc/systemd/system/"+binName+"@.service", buf[:n], 0644)
+	return buf[:n], nil
 }
