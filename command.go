@@ -16,6 +16,9 @@ type ActionFunc func(cmd *cobra.Command, args []string) error
 var rootCmd = &cobra.Command{
 	CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
 	SilenceErrors:     true,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		InstanceTag = viper.GetString("daemon.instance")
+	},
 	RunE: func(_ *cobra.Command, _ []string) error {
 		panic("daemon action not implemented")
 	},
@@ -28,6 +31,7 @@ func wrapCmd(d *Daemon) *Daemon {
 	rootCmd.Use = d.name
 	rootCmd.Short = d.desc
 	rootCmd.Version = d.version
+	rootCmd.PersistentFlags().String("daemon.instance", "", "Get instance name from systemd template")
 	// Daemon commands
 	rootCmd.AddCommand(daemonCommand(d)...)
 	return d
@@ -166,6 +170,7 @@ func daemonCommand(d *Daemon) []*cobra.Command {
 }
 
 func Execute(action ActionFunc) {
+	viper.BindPFlags(rootCmd.PersistentFlags())
 	viper.BindPFlags(rootCmd.Flags())
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("/etc/" + rootCmd.Use)

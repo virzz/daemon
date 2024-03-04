@@ -12,6 +12,8 @@ import (
 	"github.com/virzz/vlog"
 )
 
+var InstanceTag = ""
+
 var std *Daemon
 
 // New - Create a new daemon
@@ -206,7 +208,7 @@ func createUnit(binName, desc, path string, args ...string) ([]byte, error) {
 		{Section: "Service", Name: "WorkingDirectory", Value: filepath.Dir(path)},
 		{Section: "Service", Name: "PIDFile", Value: "/run/" + binName + ".pid"},
 		{Section: "Service", Name: "ExecStartPre", Value: "/bin/rm -f /run/" + binName + ".pid"},
-		{Section: "Service", Name: "ExecStart", Value: path + " " + strings.Join(args, " ")},
+		{Section: "Service", Name: "ExecStart", Value: path + " --daemon.instance %i " + strings.Join(args, " ")},
 		{Section: "Service", Name: "ExecStartPost", Value: "/bin/bash -c '/bin/systemctl show -p MainPID --value " + binName + " > /run/" + binName + ".pid'"},
 		{Section: "Service", Name: "ExecReload", Value: "/bin/kill -s HUP $MAINPID"},
 		// 只要不是通过systemctl stop来停止服务，任何情况下都必须要重启服务
