@@ -2,20 +2,32 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	systemd "github.com/coreos/go-systemd/v22/dbus"
 	"github.com/coreos/go-systemd/v22/unit"
+	"github.com/spf13/cobra"
 	"github.com/virzz/vlog"
 )
 
-var InstanceTag = ""
-
 var std *Daemon
+
+var persistentPreRunE = func(cmd *cobra.Command, args []string) error {
+	_user, err := user.Current()
+	if err != nil {
+		return err
+	}
+	if _user.Gid == "0" || _user.Uid == "0" {
+		return nil
+	}
+	return errors.New("root privileges required")
+}
 
 // New - Create a new daemon
 func New(name, desc, version string) (*Daemon, error) {
@@ -339,7 +351,7 @@ func CreateUnit(binName, desc, path string, args ...string) ([]byte, error) {
 		unitConfig["Service"]["ExecStartPre"] = "/bin/rm -f /run/" + binName + ".pid"
 	}
 	if _, ok := unitConfig["Service"]["ExecStart"]; !ok {
-		unitConfig["Service"]["ExecStart"] = path + " --daemon.instance %i " + strings.Join(args, " ")
+		unitConfig["Service"]["ExecStart"] = path + " --instance %i " + strings.Join(args, " ")
 	}
 	if _, ok := unitConfig["Service"]["ExecStartPost"]; !ok {
 		unitConfig["Service"]["ExecStartPost"] = "/bin/bash -c '/bin/systemctl show -p MainPID --value " + binName + " > /run/" + binName + ".pid'"
@@ -357,4 +369,160 @@ func CreateUnit(binName, desc, path string, args ...string) ([]byte, error) {
 		return nil, err
 	}
 	return buf[:n], nil
+}
+
+func daemonCommand(d *Daemon) []*cobra.Command {
+	rootCmd.AddGroup(&cobra.Group{ID: "daemon", Title: "Daemon commands"})
+
+	var installCmd = &cobra.Command{
+		GroupID:           "daemon",
+		Use:               "install",
+		Short:             "Install",
+		Aliases:           []string{"i"},
+		PersistentPreRunE: persistentPreRunE,
+		RunE: func(_ *cobra.Command, args []string) error {
+			return d.Install(args...)
+		},
+	}
+
+	var removeCmd = &cobra.Command{
+		GroupID:           "daemon",
+		Use:               "remove",
+		Short:             "Remove(Uninstall)",
+		Aliases:           []string{"rm", "uninstall", "uni"},
+		PersistentPreRunE: persistentPreRunE,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return d.Remove()
+		},
+	}
+
+	var startCmd = &cobra.Command{
+		GroupID:           "daemon",
+		Use:               "start [tag]...",
+		Short:             "Start",
+		Aliases:           []string{"run"},
+		PersistentPreRunE: persistentPreRunE,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			num, _ := cmd.Flags().GetInt("num")
+			return d.Start(num, args...)
+		},
+	}
+	startCmd.Flags().IntP("num", "n", 0, "Num of Instances for start")
+
+	var stopCmd = &cobra.Command{
+		GroupID:           "daemon",
+		Use:               "stop",
+		Short:             "Stop",
+		PersistentPreRunE: persistentPreRunE,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			all, _ := cmd.Flags().GetBool("all")
+			return d.Stop(all, args...)
+		},
+	}
+	stopCmd.Flags().BoolP("all", "a", false, "Stop all Instances")
+
+	var restartCmd = &cobra.Command{
+		GroupID:           "daemon",
+		Use:               "restart",
+		Short:             "Restart",
+		Aliases:           []string{"r", "re"},
+		PersistentPreRunE: persistentPreRunE,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			all, _ := cmd.Flags().GetBool("all")
+			return d.Restart(all, args...)
+		},
+	}
+	restartCmd.Flags().BoolP("all", "a", false, "Restart all Instances")
+
+	var killCmd = &cobra.Command{
+		GroupID:           "daemon",
+		Use:               "kill",
+		Short:             "Kill",
+		Aliases:           []string{"r", "re"},
+		PersistentPreRunE: persistentPreRunE,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			all, _ := cmd.Flags().GetBool("all")
+			return d.Kill(all, args...)
+		},
+	}
+	killCmd.Flags().BoolP("all", "a", false, "Kill all Instances")
+
+	var reloadCmd = &cobra.Command{
+		GroupID:           "daemon",
+		Use:               "reload",
+		Short:             "Reload",
+		PersistentPreRunE: persistentPreRunE,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			all, _ := cmd.Flags().GetBool("all")
+			return d.Reload(all, args...)
+		},
+	}
+	reloadCmd.Flags().BoolP("all", "a", false, "Reload all Instances")
+
+	var statusCmd = &cobra.Command{
+		GroupID:           "daemon",
+		Use:               "status",
+		Short:             "Status",
+		Aliases:           []string{"info", "if"},
+		PersistentPreRunE: persistentPreRunE,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			_, err := d.Status(true)
+			return err
+		},
+	}
+
+	var unitCmd = &cobra.Command{
+		GroupID:           "daemon",
+		Hidden:            true,
+		Use:               "unit",
+		Short:             "print systemd unit service file",
+		PersistentPreRunE: persistentPreRunE,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if t, _ := cmd.Flags().GetBool("template"); t {
+				execPath, err := os.Executable()
+				if err != nil {
+					return err
+				}
+				buf, err := CreateUnit(d.name, d.desc, execPath, args...)
+				if err != nil {
+					return err
+				}
+				fmt.Println(string(buf))
+				return nil
+			}
+			fn := "/etc/systemd/system/" + d.name + "@.service"
+			vlog.Info("filepath = " + fn)
+			buf, err := os.ReadFile(fn)
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(buf))
+			return nil
+		},
+	}
+	unitCmd.Flags().BoolP("template", "t", false, "Show template unit service file")
+
+	var versionCmd = &cobra.Command{
+		Use:     "version",
+		Short:   "Version",
+		Aliases: []string{"v"},
+		Run: func(_ *cobra.Command, _ []string) {
+			fmt.Println(d.Version())
+		},
+	}
+
+	return []*cobra.Command{
+		installCmd,
+		removeCmd,
+
+		startCmd,
+		stopCmd, killCmd,
+		restartCmd,
+		statusCmd,
+
+		reloadCmd,
+
+		versionCmd,
+		unitCmd,
+	}
 }

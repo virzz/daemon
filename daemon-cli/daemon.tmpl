@@ -14,7 +14,7 @@ import (
 
 var (
 	Version string = "latest"
-	Revsion string = "unknown"
+	Commit string = "unknown"
 
 	rootCmd = daemon.RootCmd()
 )
@@ -26,20 +26,19 @@ const (
 
 func Action(cmd *cobra.Command, args []string) error {
 	{{ if .Signal -}}
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	{{- end }}
 	// TODO: Add your code here
 	{{ if .Signal -}}
-	<-interrupt
+	<-sig
 	{{- end }}
 	return nil
 }
 
 func main() {
 	rootCmd.Flags().BoolP("debug", "d", false, "debug mode")
-
-	_, err := daemon.New(name, description, Version)
+	_, err := daemon.New(name, description, Version+" "+Commit)
 	if err != nil {
 		fmt.Println("Error: ", err)
 		return
