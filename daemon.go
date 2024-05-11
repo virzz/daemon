@@ -573,7 +573,7 @@ func daemonCommand(d *Daemon) []*cobra.Command {
 		SilenceUsage: true,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			buf := &bytes.Buffer{}
-			for _, k := range []string{"ENDPOINT", "USERNAME", "PASSWORD"} {
+			for _, k := range []string{"ENDPOINT", "USERNAME", "PASSWORD", "PROJECT"} {
 				prompt := promptui.Prompt{Label: k}
 				v, err := prompt.Run()
 				if err != nil {
