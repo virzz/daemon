@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -24,6 +25,10 @@ var rootCmd = &cobra.Command{
 		panic("daemon action not implemented")
 	},
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		_ul := strings.Split(cmd.UseLine(), " ")
+		if len(_ul) > 1 && slices.Contains([]string{"version", "completion", "help", "env"}, _ul[1]) {
+			return nil
+		}
 		InstanceTag = viper.GetString("instance")
 		programName := cmd.Root().Use
 		// Config: Runtime > Remote > Local
