@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 
 	systemd "github.com/coreos/go-systemd/v22/dbus"
 	"github.com/coreos/go-systemd/v22/unit"
+	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"github.com/virzz/vlog"
 )
@@ -565,6 +567,42 @@ func daemonCommand(d *Daemon) []*cobra.Command {
 		},
 	}
 
+	var envCmd = &cobra.Command{
+		Use:          "env",
+		Short:        "Create Daemon Config Environment File",
+		SilenceUsage: true,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			buf := &bytes.Buffer{}
+			for _, k := range []string{"ENDPOINT", "USERNAME", "PASSWORD"} {
+				prompt := promptui.Prompt{Label: k}
+				v, err := prompt.Run()
+				if err != nil {
+					if errors.Is(err, promptui.ErrInterrupt) {
+						return nil
+					}
+					return err
+				}
+				if v != "" {
+					buf.WriteString("VIRZZ_DAEMON_REMOTE_" + k + "=" + v + "\n")
+				}
+			}
+			for _, k := range []string{"SAVE", "WATCH"} {
+				prompt := promptui.Select{Label: k, Items: []string{"true", "false"}}
+				_, v, err := prompt.Run()
+				if err != nil {
+					if errors.Is(err, promptui.ErrInterrupt) {
+						return nil
+					}
+					return err
+				}
+				if v != "" {
+					buf.WriteString("VIRZZ_DAEMON_REMOTE_" + k + "=" + v + "\n")
+				}
+			}
+			return os.WriteFile("/etc/default/virzz-daemon", buf.Bytes(), 0644)
+		},
+	}
+
 	return []*cobra.Command{
 		installCmd,
 		removeCmd,
@@ -578,5 +616,7 @@ func daemonCommand(d *Daemon) []*cobra.Command {
 
 		versionCmd,
 		unitCmd,
+
+		envCmd,
 	}
 }
