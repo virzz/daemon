@@ -377,6 +377,7 @@ var unitConfig = map[string]map[string]string{
 		"StartLimitInterval":       "30",                        // 启动尝试间隔
 		"StartLimitBurst":          "10",                        // 最大启动尝试次数
 		"RestartPreventExitStatus": "SIGKILL",                   // kill -9 不重启
+		"EnvironmentFile":          "-/etc/default/virzz-daemon",
 	},
 }
 

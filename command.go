@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -31,11 +32,11 @@ var rootCmd = &cobra.Command{
 			return viper.ReadInConfig()
 		}
 		configType := daemonViper.GetString("config.type")
-		daemonViper.SetConfigType(configType)
 		viper.SetConfigType(configType)
 		// Remote
 		endpoint := daemonViper.GetString("remote.endpoint")
 		if endpoint != "" {
+			daemonViper.SetConfigType(configType)
 			remotePath := fmt.Sprintf("/config/%s/%s", programName, InstanceTag)
 			viper.RemoteConfig = &remote.Config{
 				Username: daemonViper.GetString("remote.username"),
@@ -44,11 +45,9 @@ var rootCmd = &cobra.Command{
 			err := viper.AddRemoteProvider("etcd3", endpoint, remotePath)
 			if err != nil {
 				vlog.Error("Failed to add remote provider", "err", err.Error())
-				return err
 			} else {
 				if err = viper.ReadRemoteConfig(); err != nil {
 					vlog.Error("Failed to read remote config", "key", remotePath, "err", err.Error())
-					return err
 				} else {
 					vlog.Info("Load Remote Config", "path", remotePath)
 					if daemonViper.GetBool("remote.save") {
@@ -108,7 +107,11 @@ func wrapCmd(d *Daemon) *Daemon {
 	remoteFlagSet.StringP("remote.password", "p", "", "Remote config auth password")
 	remoteFlagSet.BoolP("remote.save", "s", false, "Remote config save to local")
 	remoteFlagSet.BoolP("remote.watch", "w", true, "Remote config watch change")
+
 	daemonViper.BindPFlags(remoteFlagSet)
+	daemonViper.SetEnvPrefix("virzz_daemon")
+	daemonViper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	daemonViper.AutomaticEnv()
 
 	rootCmd.PersistentFlags().AddFlagSet(remoteFlagSet)
 	// Daemon commands
