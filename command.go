@@ -115,12 +115,12 @@ func wrapCmd(d *Daemon) *Daemon {
 
 	remoteFlagSet := pflag.NewFlagSet("remote", pflag.ContinueOnError)
 	remoteFlagSet.String("config.type", "json", "Config type")
-	remoteFlagSet.StringP("remote.endpoint", "e", "", "Remote config endpoint")
-	remoteFlagSet.StringP("remote.username", "u", "", "Remote config auth username")
-	remoteFlagSet.StringP("remote.password", "p", "", "Remote config auth password")
-	remoteFlagSet.StringP("remote.project", "n", "", "Remote config project name")
-	remoteFlagSet.BoolP("remote.save", "s", false, "Remote config save to local")
-	remoteFlagSet.BoolP("remote.watch", "w", true, "Remote config watch change")
+	remoteFlagSet.String("remote.endpoint", "", "Remote config endpoint")
+	remoteFlagSet.String("remote.username", "", "Remote config auth username")
+	remoteFlagSet.String("remote.password", "", "Remote config auth password")
+	remoteFlagSet.String("remote.project", "", "Remote config project name")
+	remoteFlagSet.Bool("remote.save", false, "Remote config save to local")
+	remoteFlagSet.Bool("remote.watch",  true, "Remote config watch change")
 
 	daemonViper.BindPFlags(remoteFlagSet)
 	daemonViper.SetEnvPrefix("virzz_daemon")
