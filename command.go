@@ -16,6 +16,13 @@ import (
 	"github.com/virzz/daemon/v2/remote"
 )
 
+// Vipre Remote Config
+//
+// Provider: etcd3
+// Path: /config/{programName}/{projectName}/{instance}
+// 		- projectName: server or project name
+// 	eg: /config/worker/host1/default
+
 var daemonViper = viper.New()
 
 var rootCmd = &cobra.Command{
@@ -42,7 +49,8 @@ var rootCmd = &cobra.Command{
 		endpoint := daemonViper.GetString("remote.endpoint")
 		if endpoint != "" {
 			daemonViper.SetConfigType(configType)
-			remotePath := fmt.Sprintf("/config/%s/%s", programName, InstanceTag)
+			projectName := daemonViper.GetString("remote.project")
+			remotePath := fmt.Sprintf("/config/%s/%s/%s", programName, projectName, InstanceTag)
 			viper.RemoteConfig = &remote.Config{
 				Username: daemonViper.GetString("remote.username"),
 				Password: daemonViper.GetString("remote.password"),
@@ -110,6 +118,7 @@ func wrapCmd(d *Daemon) *Daemon {
 	remoteFlagSet.StringP("remote.endpoint", "e", "", "Remote config endpoint")
 	remoteFlagSet.StringP("remote.username", "u", "", "Remote config auth username")
 	remoteFlagSet.StringP("remote.password", "p", "", "Remote config auth password")
+	remoteFlagSet.StringP("remote.project", "n", "", "Remote config project name")
 	remoteFlagSet.BoolP("remote.save", "s", false, "Remote config save to local")
 	remoteFlagSet.BoolP("remote.watch", "w", true, "Remote config watch change")
 

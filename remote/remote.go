@@ -11,11 +11,6 @@ import (
 	goetcdv3 "go.etcd.io/etcd/client/v3"
 )
 
-// Vipre Remote Config
-//
-// Provider: etcd3
-// Path: /config/{programName}/{instance}
-
 type Config struct {
 	viper.RemoteProvider
 	Username, Password string
