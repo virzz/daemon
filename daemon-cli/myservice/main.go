@@ -9,13 +9,19 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
 	"github.com/virzz/daemon/v2"
 )
 
-var (
+const (
 	name        = "myservice"
-	version     = "1.0.0"
-	description = "My Test Service"
+	description = "MyTestService"
+)
+
+var (
+	version string = "1.0.0"
+	commit  string = "dev"
 )
 
 func Action(cmd *cobra.Command, args []string) error {
@@ -23,8 +29,9 @@ func Action(cmd *cobra.Command, args []string) error {
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 	for {
 		select {
-		case <-time.After(1 * time.Second):
+		case <-time.After(2 * time.Second):
 			log.Println("Running...")
+			log.Printf("%+v\n", viper.AllSettings())
 		case killSignal := <-interrupt:
 			fmt.Println("Got signal:", killSignal)
 			if killSignal == os.Interrupt {
@@ -37,7 +44,7 @@ func Action(cmd *cobra.Command, args []string) error {
 }
 
 func main() {
-	_, err := daemon.New(name, description, version)
+	_, err := daemon.New(name, description, version+" "+commit)
 	if err != nil {
 		fmt.Println("Error: ", err)
 		os.Exit(1)

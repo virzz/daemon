@@ -6,33 +6,20 @@ import (
 	"github.com/virzz/vlog"
 )
 
-var InstanceTag = ""
+var (
+	InstanceTag = ""
+)
 
 type ActionFunc func(cmd *cobra.Command, args []string) error
 
-func Execute(action ActionFunc) {
-	viper.BindPFlags(rootCmd.PersistentFlags())
-	viper.BindPFlags(rootCmd.Flags())
+func init() {
 	viper.AutomaticEnv()
-	if viper.ConfigFileUsed() == "" {
-		viper.AddConfigPath(".")
-		viper.AddConfigPath("$HOME/.config/" + rootCmd.Use)
-		viper.AddConfigPath("/etc/" + rootCmd.Use)
-		viper.SetConfigName(rootCmd.Use)
-		viper.SetConfigType("yaml")
-		if err := viper.ReadInConfig(); err != nil {
-			vlog.Error(err.Error())
-			return
-		}
-	}
-	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		InstanceTag = viper.GetString("instance")
-		if InstanceTag != "" {
-			viper.AddConfigPath(InstanceTag)
-		}
-		return viper.ReadInConfig()
-	}
+	viper.SetDefault("instance", "default")
+}
+
+func Execute(action ActionFunc) {
 	rootCmd.RunE = action
+	viper.BindPFlags(rootCmd.Flags())
 	if err := rootCmd.Execute(); err != nil {
 		vlog.Error(err.Error())
 	}
