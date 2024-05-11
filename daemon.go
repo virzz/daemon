@@ -118,6 +118,18 @@ func (d *Daemon) Start(num int, tags ...string) error {
 				vlog.Info("Started [ " + name + " ] " + v)
 			}
 		}
+	} else {
+		name := d.name + "@default.service"
+		_, err = conn.StartUnitContext(ctx, name, "fail", recv)
+		if err != nil {
+			return err
+		}
+		v := <-recv
+		if v == "failed" {
+			vlog.Error("Started [ " + name + " ] " + v)
+		} else {
+			vlog.Info("Started [ " + name + " ] " + v)
+		}
 	}
 	return nil
 }
@@ -164,6 +176,19 @@ func (d *Daemon) Stop(all bool, tags ...string) error {
 				vlog.Info("Stop [ " + name + " ] " + v)
 			}
 		}
+	} else {
+		recv := make(chan string, 1)
+		name := d.name + "@default.service"
+		_, err = conn.StopUnitContext(ctx, name, "fail", recv)
+		if err != nil {
+			return err
+		}
+		v := <-recv
+		if v == "failed" {
+			vlog.Error("Stop [" + name + "] " + v)
+		} else {
+			vlog.Info("Stop [ " + name + " ] " + v)
+		}
 	}
 	return nil
 }
@@ -187,6 +212,8 @@ func (d *Daemon) Kill(all bool, tags ...string) error {
 		for _, tag := range tags {
 			conn.KillUnitContext(ctx, d.name+"@"+tag+".service", 9)
 		}
+	} else {
+		conn.KillUnitContext(ctx, d.name+"@default.service", 9)
 	}
 	return nil
 }
@@ -233,6 +260,19 @@ func (d *Daemon) Restart(all bool, tags ...string) error {
 				vlog.Info("Restarted [ " + name + " ] " + v)
 			}
 		}
+	} else {
+		recv := make(chan string, 1)
+		name := d.name + "@default.service"
+		_, err = conn.RestartUnitContext(ctx, name, "fail", recv)
+		if err != nil {
+			return err
+		}
+		v := <-recv
+		if v == "failed" {
+			vlog.Error("Restarted [ " + name + " ] " + v)
+		} else {
+			vlog.Info("Restarted [ " + name + " ] " + v)
+		}
 	}
 	return nil
 }
@@ -277,6 +317,19 @@ func (d *Daemon) Reload(all bool, tags ...string) error {
 			} else {
 				vlog.Info("Reloaded [ " + name + " ] " + v)
 			}
+		}
+	} else {
+		recv := make(chan string, 1)
+		name := d.name + "@default.service"
+		_, err = conn.ReloadOrRestartUnitContext(ctx, name, "fail", recv)
+		if err != nil {
+			return err
+		}
+		v := <-recv
+		if v == "failed" {
+			vlog.Error("Reloaded [ " + name + " ] " + v)
+		} else {
+			vlog.Info("Reloaded [ " + name + " ] " + v)
 		}
 	}
 	return nil
