@@ -33,10 +33,11 @@ func wrapCmd(d *Daemon) *Daemon {
 	rootCmd.Short = d.desc
 	rootCmd.Version = d.version
 
-	rootCmd.PersistentFlags().StringP("instance", "i", "", "Get instance name from systemd template")
+	rootCmd.PersistentFlags().StringP("instance", "i", "default", "Get instance name from systemd template")
 	viper.BindPFlags(rootCmd.PersistentFlags())
 
 	remoteFlagSet := pflag.NewFlagSet("remote", pflag.ContinueOnError)
+	remoteFlagSet.Bool("remote.enable", false, "Enable Remote config")
 	remoteFlagSet.String("config.type", "json", "Config type")
 	remoteFlagSet.String("remote.endpoint", "", "Remote config endpoint")
 	remoteFlagSet.String("remote.provider", "consul", "Remote config provider")

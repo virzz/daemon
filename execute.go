@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	InstanceTag = ""
+	InstanceTag = "default"
 )
 
 type ActionFunc func(cmd *cobra.Command, args []string) error
@@ -20,8 +20,7 @@ func Execute(action ActionFunc) {
 	viper.SetEnvPrefix(rootCmd.Use)
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
-	viper.SetDefault("instance", "default")
 	if err := rootCmd.Execute(); err != nil {
-		vlog.Error(err.Error())
+		vlog.Errorf("%+v", err.Error())
 	}
 }
