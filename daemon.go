@@ -371,6 +371,10 @@ var unitConfig = map[string]map[string]string{
 	"Unit": {
 		"Wants": "network.target",
 	},
+	"Install": {
+		"DefaultInstance": "default",
+		"WantedBy":        "multi-user.target",
+	},
 	"Service": {
 		"Type":                     "exec",
 		"ExecReload":               "/bin/kill -s HUP $MAINPID", // 发送HUP信号重载服务
@@ -445,7 +449,7 @@ func daemonCommand(d *Daemon) []*cobra.Command {
 		GroupID:           "daemon",
 		Use:               "remove",
 		Short:             "Remove(Uninstall)",
-		Aliases:           []string{"rm", "uninstall", "uni"},
+		Aliases:           []string{"rm", "uninstall", "uni", "un"},
 		PersistentPreRunE: persistentPreRunE,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return d.Remove()
@@ -494,7 +498,7 @@ func daemonCommand(d *Daemon) []*cobra.Command {
 		GroupID:           "daemon",
 		Use:               "kill",
 		Short:             "Kill",
-		Aliases:           []string{"r", "re"},
+		Aliases:           []string{"k"},
 		PersistentPreRunE: persistentPreRunE,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			all, _ := cmd.Flags().GetBool("all")
