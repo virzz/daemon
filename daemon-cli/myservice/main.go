@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	appID       = "com.virzz.myservice"
 	name        = "myservice"
 	description = "MyTestService"
 )
@@ -30,7 +31,7 @@ func Action(cmd *cobra.Command, args []string) error {
 	for {
 		select {
 		case <-time.After(2 * time.Second):
-			log.Println("Running...")
+			log.Println("Myservice is running...")
 			log.Printf("%+v\n", viper.AllSettings())
 		case killSignal := <-interrupt:
 			fmt.Println("Got signal:", killSignal)
@@ -44,7 +45,7 @@ func Action(cmd *cobra.Command, args []string) error {
 }
 
 func main() {
-	_, err := daemon.New(name, description, version+" "+commit)
+	_, err := daemon.New(appID, name, description, version, commit)
 	if err != nil {
 		fmt.Println("Error: ", err)
 		os.Exit(1)

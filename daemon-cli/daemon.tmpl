@@ -12,6 +12,11 @@ import (
 	"github.com/virzz/daemon"
 )
 
+const (
+	appID 		  = "{{.AppID}}"
+	name        = "{{.Name}}"
+	description = "{{.Description}}"
+)
 var (
 	Version string = "latest"
 	Commit string = "unknown"
@@ -19,10 +24,6 @@ var (
 	rootCmd = daemon.RootCmd()
 )
 
-const (
-	name        = "{{.Name}}"
-	description = "{{.Description}}"
-)
 
 func Action(cmd *cobra.Command, args []string) error {
 	{{ if .Signal -}}
@@ -38,7 +39,7 @@ func Action(cmd *cobra.Command, args []string) error {
 
 func main() {
 	rootCmd.Flags().BoolP("debug", "d", false, "debug mode")
-	_, err := daemon.New(name, description, Version+" "+Commit)
+	_, err := daemon.New(appID, name, description, Version+" "+Commit)
 	if err != nil {
 		fmt.Println("Error: ", err)
 		return

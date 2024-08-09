@@ -1,26 +1,36 @@
 package remote
 
 import (
-	"errors"
 	"io"
 
 	"github.com/spf13/viper"
+	"github.com/virzz/vlog"
 )
+
+type Client interface {
+	Get() (io.Reader, error)
+}
 
 type Config struct {
 	viper.RemoteProvider
-	Username, Password string
 }
 
 func (c *Config) Get(rp viper.RemoteProvider) (io.Reader, error) {
 	c.RemoteProvider = rp
-	switch rp.Provider() {
-	case "etcdv3":
-		return NewEtcdV3(c).Get()
-	case "consul":
-		return NewConsul(c).Get()
+	var err error
+	if virzz == nil {
+		virzz, err = NewVirzz(c)
+		if err != nil {
+			vlog.Error("Failed to create new client", "err", err.Error())
+			return nil, err
+		}
 	}
-	return nil, errors.New("Not suppost")
+	r, err := virzz.Get()
+	if err != nil {
+		vlog.Error("Failed to get remote config", "err", err.Error())
+		return nil, err
+	}
+	return r, nil
 }
 
 func (c *Config) Watch(rp viper.RemoteProvider) (io.Reader, error) {
