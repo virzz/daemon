@@ -13,14 +13,22 @@ import (
 var daemonTmpl string
 
 type Opt struct {
-	Name, Description string
-	Signal            bool
+	AppID, Name, Description string
+	Signal                   bool
 }
 
 func main() {
 	opt := &Opt{}
-	prompt := promptui.Prompt{Label: "Name"}
+	prompt := promptui.Prompt{Label: "AppID"}
 	result, err := prompt.Run()
+	if err != nil {
+		log.Printf("Prompt failed %v\n", err)
+		return
+	}
+	opt.AppID = result
+
+	prompt = promptui.Prompt{Label: "Name"}
+	result, err = prompt.Run()
 	if err != nil {
 		log.Printf("Prompt failed %v\n", err)
 		return

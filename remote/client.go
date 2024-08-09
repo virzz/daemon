@@ -2,78 +2,60 @@ package remote
 
 import (
 	"bytes"
-	"context"
-	"fmt"
+	"crypto/aes"
+	"encoding/base64"
 	"io"
-	"time"
+	"net/http"
+	"net/url"
 
-	consul "github.com/hashicorp/consul/api"
 	"github.com/pkg/errors"
-	goetcdv3 "go.etcd.io/etcd/client/v3"
+
+	"github.com/virzz/utils/crypto"
 )
 
-type Client interface {
-	Get() (io.Reader, error)
+var _ Client = (*Virzz)(nil)
+
+type Virzz struct {
+	cfg *Config
+	URL string
 }
 
-var _ Client = (*EtcdV3)(nil)
-var _ Client = (*Consul)(nil)
+var virzz *Virzz
 
-type EtcdV3 struct{ cfg *Config }
-
-func NewEtcdV3(cfg *Config) *EtcdV3 { return &EtcdV3{cfg: cfg} }
-
-func (c *EtcdV3) newClient() (*goetcdv3.Client, error) {
-	return goetcdv3.New(goetcdv3.Config{
-		Endpoints: []string{c.cfg.Endpoint()},
-		Username:  c.cfg.Username, Password: c.cfg.Password,
-	})
+func NewVirzz(cfg *Config) (*Virzz, error) {
+	target, err := url.Parse(cfg.Endpoint())
+	if err != nil {
+		return nil, err
+	}
+	target.Path = cfg.Path()
+	return &Virzz{cfg: cfg, URL: target.String()}, nil
 }
 
-func (c *EtcdV3) Get() (io.Reader, error) {
-	client, err := c.newClient()
+func (c *Virzz) Get() (io.Reader, error) {
+	rsp, err := http.Get(c.URL)
 	if err != nil {
 		return nil, err
 	}
-	defer client.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	resp, err := client.Get(ctx, c.cfg.Path())
+	defer rsp.Body.Close()
+	if rsp.StatusCode != http.StatusOK {
+		return nil, errors.Errorf("failed to get remote config: %s", rsp.Status)
+	}
+	buf, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		return nil, err
 	}
-	if len(resp.Kvs) == 0 {
-		return nil, fmt.Errorf("key not found")
-	}
-	return bytes.NewReader(resp.Kvs[0].Value), nil
-}
-
-type Consul struct{ cfg *Config }
-
-func NewConsul(cfg *Config) *Consul { return &Consul{cfg: cfg} }
-
-func (c *Consul) newClient() (*consul.KV, error) {
-	conf := consul.DefaultConfig()
-	conf.Address = c.cfg.Endpoint()
-	conf.Token = c.cfg.Password
-	client, err := consul.NewClient(conf)
+	var dst = make([]byte, base64.StdEncoding.DecodedLen(len(buf)))
+	n, err := base64.StdEncoding.Decode(dst, buf)
 	if err != nil {
 		return nil, err
 	}
-	return client.KV(), nil
-}
-
-func (c *Consul) Get() (io.Reader, error) {
-	client, err := c.newClient()
+	buf = dst[:n]
+	if len(buf) < aes.BlockSize {
+		return nil, errors.New("invalid remote config")
+	}
+	buf, err = crypto.AesDecrypt(buf[aes.BlockSize:], []byte(c.cfg.SecretKeyring()), buf[:aes.BlockSize])
 	if err != nil {
 		return nil, err
 	}
-	kv, _, err := client.Get(c.cfg.Path(), nil)
-	if err != nil {
-		return nil, err
-	}
-	if kv == nil {
-		return nil, errors.New("Key was not found.")
-	}
-	return bytes.NewReader(kv.Value), nil
+	return bytes.NewReader(buf), nil
 }
