@@ -1,4 +1,4 @@
-package main
+package daemon_test
 
 import (
 	"fmt"
@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/virzz/daemon/v2"
+	"github.com/virzz/vlog"
 )
 
 const (
@@ -20,9 +21,15 @@ const (
 	description = "MyTestService"
 )
 
+type Config struct {
+	A string `json:"a"`
+}
+
 var (
-	version string = "1.0.0"
-	commit  string = "dev"
+	Version string = "1.0.0"
+	Commit  string = "dev"
+
+	C = &Config{}
 )
 
 func Action(cmd *cobra.Command, args []string) error {
@@ -44,12 +51,22 @@ func Action(cmd *cobra.Command, args []string) error {
 	}
 }
 
-func main() {
-	_, err := daemon.New(appID, name, description, version, commit)
+func Example() {
+	_, err := daemon.New(appID, name, description, Version, Commit)
 	if err != nil {
 		fmt.Println("Error: ", err)
 		os.Exit(1)
 	}
+	vlog.New("test.log")
+	daemon.SetLogger(vlog.Log)
+
+	daemon.EnableRemoteConfig("test")
+
 	daemon.SetUnitConfig("Service", "Type", "simple")
-	daemon.Execute(Action)
+	daemon.RegisterConfig(C)
+
+	err = daemon.ExecuteE(Action)
+	if err != nil {
+		fmt.Println("Error: ", err)
+	}
 }
