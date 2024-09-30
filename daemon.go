@@ -1,424 +1,141 @@
 package daemon
 
 import (
-	"context"
-	"errors"
 	"fmt"
+	"log/slog"
 	"os"
-	"os/user"
-	"path/filepath"
-	"strconv"
 	"strings"
 
-	systemd "github.com/coreos/go-systemd/v22/dbus"
-	"github.com/coreos/go-systemd/v22/unit"
+	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/virzz/vlog"
 )
 
+const defaultRemoteEndpoint = "config.app.virzz.com"
+
 var (
-	std      *Daemon
-	stdAppID string
+	std            *Daemon
+	registerConfig any = nil
+	rootCmd            = &cobra.Command{
+		CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
+		SilenceErrors:     true,
+		SilenceUsage:      true,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			panic("daemon action not implemented")
+		},
+	}
 )
 
-var persistentPreRunE = func(cmd *cobra.Command, args []string) error {
-	_user, err := user.Current()
-	if err != nil {
-		return err
-	}
-	if _user.Gid == "0" || _user.Uid == "0" {
-		return nil
-	}
-	return errors.New("root privileges required")
-}
-
-func SetUnitConfig(section, name, value string) {
-	if _, ok := unitConfig[section]; !ok {
-		unitConfig[section] = make(map[string]string)
-	}
-	unitConfig[section][name] = value
-}
-
-var unitConfig = map[string]map[string]string{
-	"Unit": {
-		"Wants": "network.target",
-	},
-	"Install": {
-		"DefaultInstance": "default",
-		"WantedBy":        "multi-user.target",
-	},
-	"Service": {
-		"Type":                     "exec",
-		"ExecReload":               "/bin/kill -s HUP $MAINPID", // 发送HUP信号重载服务
-		"Restart":                  "always",                    // 只要不是通过systemctl stop来停止服务，任何情况下都必须要重启服务
-		"RestartSec":               "0",                         // 重启间隔
-		"StartLimitInterval":       "30",                        // 启动尝试间隔
-		"StartLimitBurst":          "10",                        // 最大启动尝试次数
-		"RestartPreventExitStatus": "SIGKILL",                   // kill -9 不重启
-	},
-}
-
-func CreateUnit(binName, desc, path string, args ...string) ([]byte, error) {
-	binName += "@%i"
-	if unitConfig == nil {
-		return nil, fmt.Errorf("unitConfig is nil")
-	}
-	if _, ok := unitConfig["Unit"]; !ok {
-		unitConfig["Unit"] = make(map[string]string)
-	}
-	if _, ok := unitConfig["Unit"]["Description"]; !ok {
-		unitConfig["Unit"]["Description"] = strings.ToUpper(binName[:1]) + binName[1:] + " " + desc
-	}
-	if _, ok := unitConfig["Service"]; !ok {
-		unitConfig["Service"] = make(map[string]string)
-	}
-	if _, ok := unitConfig["Service"]["WorkingDirectory"]; !ok {
-		unitConfig["Service"]["WorkingDirectory"] = filepath.Dir(path)
-	}
-	if _, ok := unitConfig["Service"]["PIDFile"]; !ok {
-		unitConfig["Service"]["PIDFile"] = "/run/" + binName + ".pid"
-	}
-	if _, ok := unitConfig["Service"]["ExecStartPre"]; !ok {
-		unitConfig["Service"]["ExecStartPre"] = "/bin/rm -f /run/" + binName + ".pid"
-	}
-	if _, ok := unitConfig["Service"]["ExecStart"]; !ok {
-		unitConfig["Service"]["ExecStart"] = path + " --instance %i " + strings.Join(args, " ")
-	}
-	if _, ok := unitConfig["Service"]["ExecStartPost"]; !ok {
-		unitConfig["Service"]["ExecStartPost"] = "/bin/bash -c '/bin/systemctl show -p MainPID --value " + binName + " > /run/" + binName + ".pid'"
-	}
-	data := make([]*unit.UnitOption, 0, 10)
-	for sec, v := range unitConfig {
-		for name, value := range v {
-			data = append(data, &unit.UnitOption{Section: sec, Name: name, Value: value})
-		}
-	}
-	reader := unit.Serialize(data)
-	buf := make([]byte, 1024)
-	n, err := reader.Read(buf)
-	if err != nil {
-		return nil, err
-	}
-	return buf[:n], nil
-}
+func unmarshalConfig(c *mapstructure.DecoderConfig) { c.TagName = "json" }
+func AddCommand(cmds ...*cobra.Command)             { rootCmd.AddCommand(cmds...) }
+func RootCmd() *cobra.Command                       { return rootCmd }
+func RegisterConfig(v any)                          { registerConfig = v }
+func SetLogger(log *slog.Logger)                    { std.SetLogger(log) }
 
 type Daemon struct {
-	name string
-	desc string
+	logger         *slog.Logger
+	systemd        *Systemd
+	project        string
+	remoteEndpoint string
+	remoteConfig   bool
+	secretKey      []byte
 }
 
-func (d *Daemon) Name() string        { return d.name }
-func (d *Daemon) Description() string { return d.desc }
-
-func (d *Daemon) Install(args ...string) error {
-	vlog.Info("Install... " + d.name)
-	execPath, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	buf, err := CreateUnit(d.name, d.desc, execPath, args...)
-	if err != nil {
-		return err
-	}
-	os.WriteFile("/etc/systemd/system/"+d.name+"@.service", buf, 0644)
-	ctx := context.Background()
-	conn, err := systemd.NewSystemConnectionContext(ctx)
-	if err != nil {
-		return err
-	}
-	vlog.Info("Installed " + d.name)
-	return conn.ReloadContext(ctx)
+func (d *Daemon) SetLogger(log *slog.Logger) {
+	d.logger = log.WithGroup("daemon")
+	d.systemd.logger = log.WithGroup("systemd")
+	viper.WithLogger(log.WithGroup("viper"))
 }
 
-// Remove the service
-func (d *Daemon) Remove() error {
-	vlog.Info("Removing... " + d.name)
-	err := d.Stop(true)
-	if err != nil {
-		vlog.Warn(err.Error())
+// New - Create a new daemon
+func New(appID, name, desc, version, commit string) (*Daemon, error) {
+	rootCmd.Use = name
+	rootCmd.Short = desc
+	rootCmd.Version = appID + " " + version + " " + commit
+	rootCmd.PersistentFlags().StringP("instance", "i", "default", "Get instance name from systemd template")
+	rootCmd.PersistentFlags().StringP("config", "c", "", "Set custom config file")
+	std = &Daemon{
+		systemd: &Systemd{
+			Name:        strings.ToLower(name),
+			Description: desc,
+			Version:     version,
+			AppID:       appID,
+		},
 	}
-	err = os.Remove("/etc/systemd/system/" + d.name + "@.service")
-	if err != nil {
-		return err
-	}
-	vlog.Info("Removed " + d.name)
-	return nil
+	std.systemd.Command(rootCmd)
+	return std, nil
 }
 
-// Start the service
-func (d *Daemon) Start(num int, tags ...string) error {
-	ctx := context.Background()
-	conn, err := systemd.NewSystemConnectionContext(ctx)
-	if err != nil {
-		return err
+type ActionFunc func(cmd *cobra.Command, args []string) error
+
+func Execute(action ActionFunc) {
+	if err := ExecuteE(action); err != nil {
+		fmt.Println("Error: ", err)
+		os.Exit(1)
 	}
-	recv := make(chan string, 1)
-	if num > 0 {
-		for i := 1; i <= num; i++ {
-			name := d.name + "@" + strconv.Itoa(i) + ".service"
-			_, err = conn.StartUnitContext(ctx, name, "fail", recv)
-			if err != nil {
-				vlog.Warn(err.Error())
-				continue
-			}
-			v := <-recv
-			if v == "failed" {
-				vlog.Error("Started [ " + name + " ] " + v)
-			} else {
-				vlog.Info("Started [ " + name + " ] " + v)
-			}
-		}
-	} else if len(tags) > 0 {
-		for _, tag := range tags {
-			name := d.name + "@" + tag + ".service"
-			_, err = conn.StartUnitContext(ctx, name, "fail", recv)
-			if err != nil {
-				vlog.Warn(err.Error())
-				continue
-			}
-			v := <-recv
-			if v == "failed" {
-				vlog.Error("Started [ " + name + " ] " + v)
-			} else {
-				vlog.Info("Started [ " + name + " ] " + v)
-			}
-		}
-	} else {
-		name := d.name + "@default.service"
-		_, err = conn.StartUnitContext(ctx, name, "fail", recv)
-		if err != nil {
-			return err
-		}
-		v := <-recv
-		if v == "failed" {
-			vlog.Error("Started [ " + name + " ] " + v)
+}
+
+func ExecuteE(action ActionFunc) error {
+	if std.logger == nil || std.systemd.logger == nil {
+		std.SetLogger(vlog.Log)
+	}
+	rootCmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
+		instance, _ := cmd.PersistentFlags().GetString("instance")
+		config, _ := cmd.PersistentFlags().GetString("config")
+		viper.SetConfigType("json")
+		if config != "" {
+			viper.SetConfigFile(config)
 		} else {
-			vlog.Info("Started [ " + name + " ] " + v)
+			viper.AddConfigPath(".")
+			viper.SetConfigName("config_" + instance)
 		}
-	}
-	return nil
-}
 
-// Stop the service
-func (d *Daemon) Stop(all bool, tags ...string) error {
-	ctx := context.Background()
-	conn, err := systemd.NewSystemConnectionContext(ctx)
-	if err != nil {
-		return err
-	}
-	if all {
-		items, err := d.Status(false)
-		if err != nil {
-			return err
-		}
-		recv := make(chan string, 1)
-		for _, item := range items {
-			_, err = conn.StopUnitContext(ctx, item.Name, "fail", recv)
+		configLoaded := false
+		if std.remoteConfig {
+			remoteEndpoint, _ := cmd.PersistentFlags().GetString("remote-endpoint")
+			if remoteEndpoint == "" {
+				remoteEndpoint = std.remoteEndpoint
+			}
+			if remoteEndpoint == "" {
+				remoteEndpoint = defaultRemoteEndpoint
+			}
+			key := fmt.Sprintf("/%s/%s/%s/%s", std.project, std.systemd.AppID, std.systemd.Version, instance)
+			err = viper.AddSecureRemoteProvider("virzz", remoteEndpoint, key, string(std.secretKey))
 			if err != nil {
-				vlog.Warn(err.Error())
-				continue
-			}
-			v := <-recv
-			if v == "failed" {
-				vlog.Error("Stop [ " + item.Name + "] " + v)
+				std.logger.Warn("Failed to add remote config provider", "err", err.Error())
 			} else {
-				vlog.Info("Stop [ " + item.Name + " ] " + v)
+				err = viper.ReadRemoteConfig()
+				if err != nil {
+					std.logger.Warn("Failed to load remote config", "err", err.Error())
+				} else {
+					configLoaded = true
+				}
 			}
 		}
-	} else if len(tags) > 0 {
-		recv := make(chan string, 1)
-		for _, tag := range tags {
-			name := d.name + "@" + tag + ".service"
-			_, err = conn.StopUnitContext(ctx, name, "fail", recv)
-			if err != nil {
-				vlog.Warn(err.Error())
-				continue
-			}
-			v := <-recv
-			if v == "failed" {
-				vlog.Error("Stop [" + name + "] " + v)
-			} else {
-				vlog.Info("Stop [ " + name + " ] " + v)
-			}
-		}
-	} else {
-		recv := make(chan string, 1)
-		name := d.name + "@default.service"
-		_, err = conn.StopUnitContext(ctx, name, "fail", recv)
-		if err != nil {
-			return err
-		}
-		v := <-recv
-		if v == "failed" {
-			vlog.Error("Stop [" + name + "] " + v)
-		} else {
-			vlog.Info("Stop [ " + name + " ] " + v)
-		}
-	}
-	return nil
-}
 
-// Kill the service
-func (d *Daemon) Kill(all bool, tags ...string) error {
-	ctx := context.Background()
-	conn, err := systemd.NewSystemConnectionContext(ctx)
-	if err != nil {
-		return err
-	}
-	if all {
-		items, err := d.Status(false)
-		if err != nil {
-			return err
-		}
-		for _, item := range items {
-			conn.KillUnitContext(ctx, item.Name, 9)
-		}
-	} else if len(tags) > 0 {
-		for _, tag := range tags {
-			conn.KillUnitContext(ctx, d.name+"@"+tag+".service", 9)
-		}
-	} else {
-		conn.KillUnitContext(ctx, d.name+"@default.service", 9)
-	}
-	return nil
-}
-
-// Restart the service
-func (d *Daemon) Restart(all bool, tags ...string) error {
-	ctx := context.Background()
-	conn, err := systemd.NewSystemConnectionContext(ctx)
-	if err != nil {
-		return err
-	}
-	if all {
-		items, err := d.Status(false)
-		if err != nil {
-			return err
-		}
-		recv := make(chan string, 1)
-		for _, item := range items {
-			_, err = conn.RestartUnitContext(ctx, item.Name, "fail", recv)
-			if err != nil {
-				vlog.Warn(err.Error())
-				continue
-			}
-			v := <-recv
-			if v == "failed" {
-				vlog.Error("Restarted [ " + item.Name + "] " + v)
-			} else {
-				vlog.Info("Restarted [ " + item.Name + " ] " + v)
-			}
-		}
-	} else if len(tags) > 0 {
-		recv := make(chan string, 1)
-		for _, tag := range tags {
-			name := d.name + "@" + tag + ".service"
-			_, err = conn.RestartUnitContext(ctx, name, "fail", recv)
-			if err != nil {
-				vlog.Warn(err.Error())
-				continue
-			}
-			v := <-recv
-			if v == "failed" {
-				vlog.Error("Restarted [ " + name + " ] " + v)
-			} else {
-				vlog.Info("Restarted [ " + name + " ] " + v)
-			}
-		}
-	} else {
-		recv := make(chan string, 1)
-		name := d.name + "@default.service"
-		_, err = conn.RestartUnitContext(ctx, name, "fail", recv)
-		if err != nil {
-			return err
-		}
-		v := <-recv
-		if v == "failed" {
-			vlog.Error("Restarted [ " + name + " ] " + v)
-		} else {
-			vlog.Info("Restarted [ " + name + " ] " + v)
-		}
-	}
-	return nil
-}
-
-// Reload the service
-func (d *Daemon) Reload(all bool, tags ...string) error {
-	vlog.Info("Reloading... " + d.name)
-	ctx := context.Background()
-	conn, err := systemd.NewSystemConnectionContext(ctx)
-	if err != nil {
-		return err
-	}
-	if all {
-		items, err := d.Status(false)
-		if err != nil {
-			return err
-		}
-		recv := make(chan string, 1)
-		for _, item := range items {
-			_, err = conn.ReloadOrRestartUnitContext(ctx, item.Name, "fail", recv)
+		if !configLoaded {
+			err = viper.ReadInConfig()
 			if err != nil {
 				return err
 			}
-			v := <-recv
-			if v == "failed" {
-				vlog.Error("Reloaded [ " + item.Name + "] " + v)
-			} else {
-				vlog.Info("Reloaded [ " + item.Name + " ] " + v)
+		}
+
+		if registerConfig != nil {
+			if err := viper.Unmarshal(registerConfig, unmarshalConfig); err != nil {
+				return err
 			}
 		}
-	} else if len(tags) > 0 {
-		recv := make(chan string, 1)
-		for _, tag := range tags {
-			name := d.name + "@" + tag + ".service"
-			_, err = conn.ReloadOrRestartUnitContext(ctx, name, "fail", recv)
-			if err != nil {
-				vlog.Warn(err.Error())
-			}
-			v := <-recv
-			if v == "failed" {
-				vlog.Error("Reloaded [ " + name + " ] " + v)
-			} else {
-				vlog.Info("Reloaded [ " + name + " ] " + v)
-			}
-		}
-	} else {
-		recv := make(chan string, 1)
-		name := d.name + "@default.service"
-		_, err = conn.ReloadOrRestartUnitContext(ctx, name, "fail", recv)
-		if err != nil {
-			return err
-		}
-		v := <-recv
-		if v == "failed" {
-			vlog.Error("Reloaded [ " + name + " ] " + v)
-		} else {
-			vlog.Info("Reloaded [ " + name + " ] " + v)
-		}
+		return nil
+	}
+	rootCmd.RunE = action
+	viper.BindPFlags(rootCmd.PersistentFlags())
+	viper.BindPFlags(rootCmd.Flags())
+	viper.SetEnvPrefix(rootCmd.Use)
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
+	if err := rootCmd.Execute(); err != nil {
+		return err
 	}
 	return nil
-}
-
-// Status - Get service status
-func (d *Daemon) Status(show bool) ([]systemd.UnitStatus, error) {
-	ctx := context.Background()
-	conn, err := systemd.NewSystemConnectionContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-	items, err := conn.ListUnitsByPatternsContext(ctx, nil, []string{d.name + "*"})
-	if err != nil {
-		return nil, err
-	}
-	if show {
-		for _, item := range items {
-			if item.SubState == "running" {
-				vlog.Info(item.Name, item.ActiveState, item.SubState)
-			} else {
-				vlog.Warn(item.Name, item.ActiveState, item.SubState)
-			}
-		}
-	}
-	return items, nil
 }
