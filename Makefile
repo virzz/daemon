@@ -1,18 +1,8 @@
-.PHONY: build
-build:
-	go build -o build/myservice ./daemon-cli/myservice/
+.PHONY: example
+example: clean
+	go build -o default.out ./example/default
+	go build -tags remote -o remote.out ./example/remote
+	ls -al *.out
 
-clean:
-	rm -rf build
-
-test: build clean
-
-install:
-	go install ./daemon-cli/
-
-test-local:
-	go run ./daemon-cli/myservice/
-
-test-remote:
-	go run -tags remote ./daemon-cli/myservice/
-
+clean: *.out
+	rm -f *.out

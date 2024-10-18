@@ -26,14 +26,6 @@ func AddCommand(cmds ...*cobra.Command) { rootCmd.AddCommand(cmds...) }
 func RootCmd() *cobra.Command           { return rootCmd }
 func SetLogger(log *slog.Logger)        { std.SetLogger(log) }
 
-type Daemon struct {
-	logger         *slog.Logger
-	systemd        *Systemd
-	project        string
-	remoteEndpoint string
-	remoteConfig   bool
-	secretKey      []byte
-}
 
 func (d *Daemon) SetLogger(log *slog.Logger) {
 	d.logger = log.WithGroup("daemon")
