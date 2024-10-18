@@ -6,6 +6,7 @@ package daemon
 import (
 	"bytes"
 	"crypto/aes"
+	"crypto/cipher"
 	"io"
 	"log/slog"
 	"net/http"
@@ -13,9 +14,31 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
-
-	"github.com/virzz/utils/crypto"
 )
+
+func padding(src []byte, blockSize int) []byte {
+	p := blockSize - len(src)%blockSize
+	return append(src, bytes.Repeat([]byte{byte(p)}, p)...)
+}
+
+func unpadding(src []byte) []byte {
+	l := len(src)
+	if n := int(src[l-1]); n <= l {
+		return src[:l-n]
+	}
+	return src
+}
+
+// 解密
+func decrypt(data, key, iv []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	buf := make([]byte, len(data))
+	cipher.NewCBCDecrypter(block, iv).CryptBlocks(buf, data)
+	return unpadding(buf), nil
+}
 
 type RemoteProvider struct {
 	viper.RemoteProvider
@@ -57,7 +80,7 @@ func (c *RemoteProvider) Get(rp viper.RemoteProvider) (io.Reader, error) {
 	if len(buf) < aes.BlockSize {
 		return nil, errors.New("invalid remote config")
 	}
-	buf, err = crypto.AesDecrypt(buf[aes.BlockSize:], []byte(rp.SecretKeyring()), buf[:aes.BlockSize])
+	buf, err = decrypt(buf[aes.BlockSize:], []byte(rp.SecretKeyring()), buf[:aes.BlockSize])
 	if err != nil {
 		return nil, err
 	}
