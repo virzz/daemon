@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/virzz/vlog"
@@ -15,9 +14,8 @@ import (
 const defaultRemoteEndpoint = "config.app.virzz.com"
 
 var (
-	std            *Daemon
-	registerConfig any = nil
-	rootCmd            = &cobra.Command{
+	std     *Daemon
+	rootCmd = &cobra.Command{
 		CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
 		SilenceErrors:     true,
 		SilenceUsage:      true,
@@ -27,11 +25,9 @@ var (
 	}
 )
 
-func unmarshalConfig(c *mapstructure.DecoderConfig) { c.TagName = "json" }
-func AddCommand(cmds ...*cobra.Command)             { rootCmd.AddCommand(cmds...) }
-func RootCmd() *cobra.Command                       { return rootCmd }
-func RegisterConfig(v any)                          { registerConfig = v }
-func SetLogger(log *slog.Logger)                    { std.SetLogger(log) }
+func AddCommand(cmds ...*cobra.Command) { rootCmd.AddCommand(cmds...) }
+func RootCmd() *cobra.Command           { return rootCmd }
+func SetLogger(log *slog.Logger)        { std.SetLogger(log) }
 
 type Daemon struct {
 	logger         *slog.Logger
@@ -113,16 +109,9 @@ func ExecuteE(action ActionFunc) error {
 				}
 			}
 		}
-
 		if !configLoaded {
 			err = viper.ReadInConfig()
 			if err != nil {
-				return err
-			}
-		}
-
-		if registerConfig != nil {
-			if err := viper.Unmarshal(registerConfig, unmarshalConfig); err != nil {
 				return err
 			}
 		}
