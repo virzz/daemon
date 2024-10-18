@@ -5,9 +5,9 @@ name: Go
 
 on:
   push:
-    branches: ['v2']
+    branches: ["v2"]
   pull_request:
-    branches: ['v2']
+    branches: ["v2"]
 
 jobs:
   build:
@@ -18,4 +18,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.21.6'
+          go-version: "1.21.6"
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Build
+        run: make example
