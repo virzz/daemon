@@ -122,7 +122,9 @@ func ExecuteE(action ActionFunc) error {
 		}
 		return nil
 	}
-	rootCmd.RunE = action
+	if action != nil {
+		rootCmd.RunE = action
+	}
 	viper.BindPFlags(rootCmd.PersistentFlags())
 	viper.BindPFlags(rootCmd.Flags())
 	viper.SetEnvPrefix(rootCmd.Use)
