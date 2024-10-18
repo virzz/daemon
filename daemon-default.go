@@ -4,12 +4,18 @@
 package daemon
 
 import (
+	"log/slog"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/virzz/vlog"
 )
+
+type Daemon struct {
+	logger  *slog.Logger
+	systemd *Systemd
+}
 
 func EnableRemoteConfig(project string, publicKey ...string) error {
 	return std.EnableRemoteConfig(project, publicKey...)

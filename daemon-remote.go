@@ -11,6 +11,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -31,6 +32,15 @@ xQIDAQAB
 -----END PUBLIC KEY-----`
 	defaultRemoteEndpoint = "config.app.virzz.com"
 )
+
+type Daemon struct {
+	logger         *slog.Logger
+	systemd        *Systemd
+	project        string
+	remoteEndpoint string
+	remoteConfig   bool
+	secretKey      []byte
+}
 
 func EnableRemoteConfig(project string, publicKey ...string) error {
 	return std.EnableRemoteConfig(project, publicKey...)
