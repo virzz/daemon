@@ -88,3 +88,7 @@ func Execute(action ActionFunc) {
 		os.Exit(1)
 	}
 }
+
+func SetAction(action ActionFunc) {
+	rootCmd.RunE = action
+}
