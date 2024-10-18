@@ -60,10 +60,9 @@ func Example() {
 	vlog.New("test.log")
 	daemon.SetLogger(vlog.Log)
 
-	daemon.EnableRemoteConfig("test")
+	// daemon.EnableRemoteConfig("test")
 
 	daemon.SetUnitConfig("Service", "Type", "simple")
-	daemon.RegisterConfig(C)
 
 	err = daemon.ExecuteE(Action)
 	if err != nil {
