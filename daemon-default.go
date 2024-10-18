@@ -39,7 +39,11 @@ func ExecuteE(action ActionFunc) error {
 			viper.AddConfigPath(".")
 			viper.SetConfigName("config_" + instance)
 		}
-		return viper.ReadInConfig()
+		err = viper.ReadInConfig()
+		if err != nil {
+			vlog.Warn("Failed to read config", "err", err.Error())
+		}
+		return nil
 	}
 	rootCmd.RunE = action
 	viper.BindPFlags(rootCmd.PersistentFlags())
