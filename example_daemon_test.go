@@ -52,20 +52,12 @@ func Action(cmd *cobra.Command, args []string) error {
 }
 
 func Example() {
-	_, err := daemon.New(appID, name, description, Version, Commit)
-	if err != nil {
-		fmt.Println("Error: ", err)
-		os.Exit(1)
-	}
+	daemon.New(appID, name, description, Version, Commit)
 	vlog.New("test.log")
 	daemon.SetLogger(vlog.Log)
 
 	// daemon.EnableRemoteConfig("test")
 
 	daemon.SetUnitConfig("Service", "Type", "simple")
-
-	err = daemon.ExecuteE(Action)
-	if err != nil {
-		fmt.Println("Error: ", err)
-	}
+	daemon.ExecuteE(Action)
 }
