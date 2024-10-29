@@ -25,7 +25,7 @@ func (d *Daemon) EnableRemoteConfig(project string, publicKey ...string) error {
 	panic("remote config build with remote tag")
 }
 
-func ExecuteE(action ActionFunc) error {
+func (d *Daemon) ExecuteE(action ActionFunc) error {
 	if std.logger == nil || std.systemd.logger == nil {
 		std.SetLogger(vlog.Log)
 	}
@@ -55,4 +55,8 @@ func ExecuteE(action ActionFunc) error {
 		return err
 	}
 	return nil
+}
+
+func ExecuteE(action ActionFunc) error {
+	return std.ExecuteE(action)
 }

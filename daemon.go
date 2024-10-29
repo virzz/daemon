@@ -62,7 +62,7 @@ func (d *Daemon) SetLogger(log *slog.Logger) {
 }
 
 // New - Create a new daemon
-func New(appID, name, desc, version, commit string) (*Daemon, error) {
+func New(appID, name, desc, version, commit string) *Daemon {
 	rootCmd.Use = name
 	rootCmd.Short = desc
 	rootCmd.Version = appID + " " + version + " " + commit
@@ -77,7 +77,7 @@ func New(appID, name, desc, version, commit string) (*Daemon, error) {
 		},
 	}
 	std.systemd.Command(rootCmd)
-	return std, nil
+	return std
 }
 
 type ActionFunc func(cmd *cobra.Command, args []string) error
