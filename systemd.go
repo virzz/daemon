@@ -96,10 +96,14 @@ func (s *Systemd) Start(num int, tags ...string) error {
 			}
 		}
 	} else {
-		name := s.Name + "@default.service"
+		name := s.Name + ".service"
 		_, err = conn.StartUnitContext(ctx, name, "fail", recv)
 		if err != nil {
-			return err
+			name = s.Name + "@default.service"
+			_, err = conn.StartUnitContext(ctx, name, "fail", recv)
+			if err != nil {
+				return err
+			}
 		}
 		v := <-recv
 		if v == "failed" {
@@ -155,10 +159,14 @@ func (s *Systemd) Stop(all bool, tags ...string) error {
 		}
 	} else {
 		recv := make(chan string, 1)
-		name := s.Name + "@default.service"
+		name := s.Name + ".service"
 		_, err = conn.StopUnitContext(ctx, name, "fail", recv)
 		if err != nil {
-			return err
+			name = s.Name + "@default.service"
+			_, err = conn.StopUnitContext(ctx, name, "fail", recv)
+			if err != nil {
+				return err
+			}
 		}
 		v := <-recv
 		if v == "failed" {
@@ -190,6 +198,7 @@ func (s *Systemd) Kill(all bool, tags ...string) error {
 			conn.KillUnitContext(ctx, s.Name+"@"+tag+".service", 9)
 		}
 	} else {
+		conn.KillUnitContext(ctx, s.Name+"default.service", 9)
 		conn.KillUnitContext(ctx, s.Name+"@default.service", 9)
 	}
 	return nil
@@ -239,10 +248,14 @@ func (s *Systemd) Restart(all bool, tags ...string) error {
 		}
 	} else {
 		recv := make(chan string, 1)
-		name := s.Name + "@default.service"
+		name := s.Name + ".service"
 		_, err = conn.RestartUnitContext(ctx, name, "fail", recv)
 		if err != nil {
-			return err
+			name = s.Name + "@default.service"
+			_, err = conn.RestartUnitContext(ctx, name, "fail", recv)
+			if err != nil {
+				return err
+			}
 		}
 		v := <-recv
 		if v == "failed" {
@@ -297,10 +310,14 @@ func (s *Systemd) Reload(all bool, tags ...string) error {
 		}
 	} else {
 		recv := make(chan string, 1)
-		name := s.Name + "@default.service"
+		name := s.Name + ".service"
 		_, err = conn.ReloadOrRestartUnitContext(ctx, name, "fail", recv)
 		if err != nil {
-			return err
+			name = s.Name + "@default.service"
+			_, err = conn.ReloadOrRestartUnitContext(ctx, name, "fail", recv)
+			if err != nil {
+				return err
+			}
 		}
 		v := <-recv
 		if v == "failed" {
