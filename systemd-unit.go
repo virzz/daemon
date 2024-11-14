@@ -20,8 +20,8 @@ var unitConfig = map[string]map[string]string{
 		"Wants": "network.target",
 	},
 	"Install": {
-		"DefaultInstance": "default",
-		"WantedBy":        "multi-user.target",
+		// "DefaultInstance": "default",
+		"WantedBy": "multi-user.target",
 	},
 	"Service": {
 		"Type":                     "exec",
@@ -35,11 +35,17 @@ var unitConfig = map[string]map[string]string{
 }
 
 func CreateUnit(multi bool, binName, desc, path string, args ...string) ([]byte, error) {
-	if multi {
-		binName += "@%i"
-	}
 	if unitConfig == nil {
 		return nil, fmt.Errorf("unitConfig is nil")
+	}
+	if _, ok := unitConfig["Install"]; !ok {
+		unitConfig["Install"] = make(map[string]string)
+	}
+	if multi {
+		unitConfig["Install"]["DefaultInstance"] = "default"
+		binName += "@%i"
+	} else {
+		delete(unitConfig["Install"], "DefaultInstance")
 	}
 	if _, ok := unitConfig["Unit"]; !ok {
 		unitConfig["Unit"] = make(map[string]string)
@@ -62,7 +68,7 @@ func CreateUnit(multi bool, binName, desc, path string, args ...string) ([]byte,
 	if _, ok := unitConfig["Service"]["ExecStart"]; !ok {
 		if multi {
 			unitConfig["Service"]["ExecStart"] = path + " --instance %i " + strings.Join(args, " ")
-		}else{
+		} else {
 			unitConfig["Service"]["ExecStart"] = path + " " + strings.Join(args, " ")
 		}
 	}
