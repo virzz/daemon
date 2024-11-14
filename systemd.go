@@ -28,7 +28,11 @@ func (s *Systemd) Install(multi bool, args ...string) error {
 	if err != nil {
 		return err
 	}
-	os.WriteFile("/etc/systemd/system/"+s.Name+"@.service", buf, 0644)
+	if multi {
+		os.WriteFile("/etc/systemd/system/"+s.Name+"@.service", buf, 0644)
+	} else {
+		os.WriteFile("/etc/systemd/system/"+s.Name+".service", buf, 0644)
+	}
 	ctx := context.Background()
 	conn, err := systemd.NewSystemConnectionContext(ctx)
 	if err != nil {
