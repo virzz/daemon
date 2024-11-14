@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/virzz/vlog"
@@ -42,6 +43,15 @@ func (d *Daemon) ExecuteE(action ActionFunc) error {
 		err = viper.ReadInConfig()
 		if err != nil {
 			vlog.Warn("Failed to read config", "err", err.Error())
+		}
+		if registerConfig != nil {
+			err = viper.Unmarshal(registerConfig, func(dc *mapstructure.DecoderConfig) {
+				dc.TagName = "json"
+			})
+			if err != nil {
+				vlog.Error("Failed to unmarshal register config", "err", err.Error())
+				return err
+			}
 		}
 		return nil
 	}

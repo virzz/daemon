@@ -12,9 +12,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type ActionFunc func(cmd *cobra.Command, args []string) error
+
 var (
-	std     *Daemon
-	rootCmd = &cobra.Command{
+	std            *Daemon
+	registerConfig any = nil
+	rootCmd            = &cobra.Command{
 		CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
 		SilenceErrors:     true,
 		SilenceUsage:      true,
@@ -51,14 +54,27 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 }
 
-func AddCommand(cmds ...*cobra.Command) { rootCmd.AddCommand(cmds...) }
-func RootCmd() *cobra.Command           { return rootCmd }
-func SetLogger(log *slog.Logger)        { std.SetLogger(log) }
+func (d *Daemon) RegisterConfig(config any) {
+	registerConfig = config
+}
 
 func (d *Daemon) SetLogger(log *slog.Logger) {
 	d.logger = log.WithGroup("daemon")
 	d.systemd.logger = log.WithGroup("systemd")
 	viper.WithLogger(log.WithGroup("viper"))
+}
+
+func AddCommand(cmds ...*cobra.Command) { rootCmd.AddCommand(cmds...) }
+func RootCmd() *cobra.Command           { return rootCmd }
+func SetLogger(log *slog.Logger)        { std.SetLogger(log) }
+func RegisterConfig(config any)         { std.RegisterConfig(config) }
+func SetAction(action ActionFunc)       { rootCmd.RunE = action }
+
+func Execute(action ActionFunc) {
+	if err := ExecuteE(action); err != nil {
+		fmt.Println("Error: ", err)
+		os.Exit(1)
+	}
 }
 
 // New - Create a new daemon
@@ -78,17 +94,4 @@ func New(appID, name, desc, version, commit string) *Daemon {
 	}
 	std.systemd.Command(rootCmd)
 	return std
-}
-
-type ActionFunc func(cmd *cobra.Command, args []string) error
-
-func Execute(action ActionFunc) {
-	if err := ExecuteE(action); err != nil {
-		fmt.Println("Error: ", err)
-		os.Exit(1)
-	}
-}
-
-func SetAction(action ActionFunc) {
-	rootCmd.RunE = action
 }
