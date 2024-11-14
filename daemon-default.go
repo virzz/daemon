@@ -32,10 +32,10 @@ func (d *Daemon) ExecuteE(action ActionFunc) error {
 	rootCmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
 		instance, _ := cmd.PersistentFlags().GetString("instance")
 		config, _ := cmd.PersistentFlags().GetString("config")
-		viper.SetConfigType("json")
 		if config != "" {
 			viper.SetConfigFile(config)
 		} else {
+			viper.SetConfigType("json")
 			viper.AddConfigPath(".")
 			viper.SetConfigName("config_" + instance)
 		}
