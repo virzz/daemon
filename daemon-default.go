@@ -30,9 +30,9 @@ func (d *Daemon) ExecuteE(action ActionFunc) error {
 	if std.logger == nil || std.systemd.logger == nil {
 		std.SetLogger(vlog.Log)
 	}
-	rootCmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
-		instance, _ := cmd.PersistentFlags().GetString("instance")
-		config, _ := cmd.PersistentFlags().GetString("config")
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) (err error) {
+		instance, _ := cmd.Flags().GetString("instance")
+		config, _ := cmd.Flags().GetString("config")
 		if config != "" {
 			viper.SetConfigFile(config)
 		} else {
@@ -42,7 +42,7 @@ func (d *Daemon) ExecuteE(action ActionFunc) error {
 		}
 		err = viper.ReadInConfig()
 		if err != nil {
-			vlog.Warn("Failed to read config", "err", err.Error())
+			vlog.Warn("Failed to read in config", "err", err.Error())
 		}
 		if registerConfig != nil {
 			err = viper.Unmarshal(registerConfig, func(dc *mapstructure.DecoderConfig) {
