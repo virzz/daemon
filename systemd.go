@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
@@ -17,6 +19,13 @@ type Systemd struct {
 	AppID       string
 }
 
+func (s *Systemd) UnitFile(mutli bool) string {
+	if mutli {
+		return "/etc/systemd/system/" + s.Name + "@.service"
+	}
+	return "/etc/systemd/system/" + s.Name + ".service"
+}
+
 func (s *Systemd) Install(multi bool, args ...string) error {
 	s.logger.Info("Install... " + s.Name)
 	execPath, err := os.Executable()
@@ -28,10 +37,11 @@ func (s *Systemd) Install(multi bool, args ...string) error {
 	if err != nil {
 		return err
 	}
-	if multi {
-		os.WriteFile("/etc/systemd/system/"+s.Name+"@.service", buf, 0644)
-	} else {
-		os.WriteFile("/etc/systemd/system/"+s.Name+".service", buf, 0644)
+	name := s.UnitFile(multi)
+	err = os.WriteFile(name, buf, 0644)
+	if err != nil {
+		s.logger.Error("Failed to write unit file", "name", name, "err", err.Error())
+		return err
 	}
 	ctx := context.Background()
 	conn, err := systemd.NewSystemConnectionContext(ctx)
@@ -173,6 +183,69 @@ func (s *Systemd) Stop(all bool, tags ...string) error {
 			s.logger.Error("Stop [" + name + "] " + v)
 		} else {
 			s.logger.Info("Stop [ " + name + " ] " + v)
+		}
+	}
+	return nil
+}
+
+// Enable the service
+func (s *Systemd) Enable(tags ...string) (err error) {
+	origin := s.UnitFile(true)
+	target := "/etc/systemd/system/multi-user.target.wants/%s@%s.service"
+	isMulti := true
+	if _, err = os.Stat(origin); err != nil && err == os.ErrNotExist {
+		origin = s.UnitFile(false)
+		if _, err = os.Stat(origin); err != nil && err == os.ErrNotExist {
+			return errors.New("service is not installed")
+		}
+		isMulti = false
+		target = "/etc/systemd/system/multi-user.target.wants/%s.service"
+	}
+	if isMulti && len(tags) > 0 {
+		for _, tag := range tags {
+			err = os.Symlink(origin, fmt.Sprintf(target, s.Name, tag))
+			if err != nil {
+				s.logger.Error("Failed to create symlink", "origin", origin, "target", target, "err", err.Error())
+			} else {
+				s.logger.Info(fmt.Sprintf("Created symlink %s -> %s", target, origin))
+			}
+		}
+	} else if isMulti {
+		err = os.Symlink(origin, fmt.Sprintf(target, s.Name, "default"))
+		if err != nil {
+			s.logger.Error("Failed to create symlink", "origin", origin, "target", target, "err", err.Error())
+		} else {
+			s.logger.Info(fmt.Sprintf("Created symlink %s -> %s", target, origin))
+		}
+	} else {
+		err = os.Symlink(origin, fmt.Sprintf(target, s.Name))
+		if err != nil {
+			s.logger.Error("Failed to create symlink", "origin", origin, "target", target, "err", err.Error())
+		} else {
+			s.logger.Info(fmt.Sprintf("Created symlink %s -> %s", target, origin))
+		}
+	}
+	return nil
+}
+
+// Disable the service
+func (s *Systemd) Disable(tags ...string) (err error) {
+	target := "/etc/systemd/system/multi-user.target.wants/%s@%s.service"
+	if len(tags) > 0 {
+		for _, tag := range tags {
+			err = os.Remove(fmt.Sprintf(target, s.Name, tag))
+			if err != nil {
+				s.logger.Error("Failed to remove symlink", "target", target, "err", err.Error())
+			}
+		}
+	} else {
+		err = os.Remove(fmt.Sprintf(target, s.Name, "default"))
+		if err != nil {
+			s.logger.Error("Failed to remove symlink", "target", target, "err", err.Error())
+		}
+		err = os.Remove("/etc/systemd/system/multi-user.target.wants/" + s.Name + ".service")
+		if err != nil {
+			s.logger.Error("Failed to remove symlink", "target", target, "err", err.Error())
 		}
 	}
 	return nil

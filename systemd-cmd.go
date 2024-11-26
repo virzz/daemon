@@ -65,6 +65,25 @@ func (s *Systemd) Command(rootCmd *cobra.Command) {
 			return std.systemd.Stop(all, args...)
 		},
 	}
+	var enableCmd = &cobra.Command{
+		GroupID:           "daemon",
+		Use:               "enable",
+		Short:             "Enable",
+		PersistentPreRunE: persistentPreRunE,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return std.systemd.Enable(args...)
+		},
+	}
+
+	var disableCmd = &cobra.Command{
+		GroupID:           "daemon",
+		Use:               "disable",
+		Short:             "Disable",
+		PersistentPreRunE: persistentPreRunE,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return std.systemd.Disable(args...)
+		},
+	}
 
 	var restartCmd = &cobra.Command{
 		GroupID:           "daemon",
@@ -120,12 +139,12 @@ func (s *Systemd) Command(rootCmd *cobra.Command) {
 		Short:             "print systemd unit service file",
 		PersistentPreRunE: persistentPreRunE,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			multi, _ := cmd.Flags().GetBool("multi")
 			if t, _ := cmd.Flags().GetBool("template"); t {
 				execPath, err := os.Executable()
 				if err != nil {
 					return err
 				}
-				multi, _ := cmd.Flags().GetBool("multi")
 				buf, err := CreateUnit(multi, s.Name, s.Description, execPath, args...)
 				if err != nil {
 					return err
@@ -133,7 +152,7 @@ func (s *Systemd) Command(rootCmd *cobra.Command) {
 				fmt.Println(string(buf))
 				return nil
 			}
-			fn := "/etc/systemd/system/" + s.Name + "@.service"
+			fn := s.UnitFile(multi)
 			s.logger.Info("filepath = " + fn)
 			buf, err := os.ReadFile(fn)
 			if err != nil {
@@ -149,6 +168,7 @@ func (s *Systemd) Command(rootCmd *cobra.Command) {
 	rootCmd.AddCommand(
 		installCmd, removeCmd, reloadCmd, unitCmd,
 		startCmd, stopCmd, killCmd, restartCmd, statusCmd,
+		enableCmd, disableCmd,
 	)
 	installCmd.Flags().BoolP("multi", "m", false, "Use template unit service")
 	startCmd.Flags().IntP("num", "n", 0, "Num of Instances for start")
