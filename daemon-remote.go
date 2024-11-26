@@ -82,9 +82,9 @@ func ExecuteE(action ActionFunc) error {
 	if std.logger == nil || std.systemd.logger == nil {
 		std.SetLogger(vlog.Log)
 	}
-	rootCmd.PreRunE = func(cmd *cobra.Command, args []string) (err error) {
-		instance, _ := cmd.PersistentFlags().GetString("instance")
-		config, _ := cmd.PersistentFlags().GetString("config")
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) (err error) {
+		instance, _ := cmd.Flags().GetString("instance")
+		config, _ := cmd.Flags().GetString("config")
 		viper.SetConfigType("json")
 		if config != "" {
 			viper.SetConfigFile(config)
@@ -95,7 +95,7 @@ func ExecuteE(action ActionFunc) error {
 
 		configLoaded := false
 		if std.remoteConfig {
-			remoteEndpoint, _ := cmd.PersistentFlags().GetString("remote-endpoint")
+			remoteEndpoint, _ := cmd.Flags().GetString("remote-endpoint")
 			if remoteEndpoint == "" {
 				remoteEndpoint = std.remoteEndpoint
 			}
