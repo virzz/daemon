@@ -85,10 +85,10 @@ func ExecuteE(action ActionFunc) error {
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) (err error) {
 		instance, _ := cmd.Flags().GetString("instance")
 		config, _ := cmd.Flags().GetString("config")
-		viper.SetConfigType("json")
 		if config != "" {
 			viper.SetConfigFile(config)
 		} else {
+			viper.SetConfigType("json")
 			viper.AddConfigPath(".")
 			viper.SetConfigName("config_" + instance)
 		}
@@ -116,9 +116,11 @@ func ExecuteE(action ActionFunc) error {
 			}
 		}
 		if !configLoaded {
-			err = viper.ReadInConfig()
-			if err != nil {
-				return err
+			if err = viper.ReadInConfig(); err != nil {
+				viper.SetConfigType("yaml")
+				if err = viper.ReadInConfig(); err != nil {
+					return err
+				}
 			}
 		}
 		if registerConfig != nil {
