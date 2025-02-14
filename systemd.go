@@ -201,21 +201,23 @@ func (s *Systemd) Enable(tags ...string) (err error) {
 		isMulti = false
 		target = "/etc/systemd/system/multi-user.target.wants/%s.service"
 	}
-	if isMulti && len(tags) > 0 {
-		for _, tag := range tags {
-			err = os.Symlink(origin, fmt.Sprintf(target, s.Name, tag))
+	if isMulti {
+		if len(tags) > 0 {
+			for _, tag := range tags {
+				err = os.Symlink(origin, fmt.Sprintf(target, s.Name, tag))
+				if err != nil {
+					s.logger.Error("Failed to create symlink", "origin", origin, "target", target, "err", err.Error())
+				} else {
+					s.logger.Info(fmt.Sprintf("Created symlink %s -> %s", target, origin))
+				}
+			}
+		} else {
+			err = os.Symlink(origin, fmt.Sprintf(target, s.Name, "default"))
 			if err != nil {
 				s.logger.Error("Failed to create symlink", "origin", origin, "target", target, "err", err.Error())
 			} else {
 				s.logger.Info(fmt.Sprintf("Created symlink %s -> %s", target, origin))
 			}
-		}
-	} else if isMulti {
-		err = os.Symlink(origin, fmt.Sprintf(target, s.Name, "default"))
-		if err != nil {
-			s.logger.Error("Failed to create symlink", "origin", origin, "target", target, "err", err.Error())
-		} else {
-			s.logger.Info(fmt.Sprintf("Created symlink %s -> %s", target, origin))
 		}
 	} else {
 		err = os.Symlink(origin, fmt.Sprintf(target, s.Name))

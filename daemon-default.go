@@ -42,7 +42,11 @@ func (d *Daemon) ExecuteE(action ActionFunc) error {
 		}
 		err = viper.ReadInConfig()
 		if err != nil {
-			vlog.Warn("Failed to read in config", "err", err.Error())
+			viper.SetConfigType("yaml")
+			err = viper.ReadInConfig()
+			if err != nil {
+				vlog.Warn("Failed to read in config", "err", err.Error())
+			}
 		}
 		if registerConfig != nil {
 			err = viper.Unmarshal(registerConfig, func(dc *mapstructure.DecoderConfig) {
