@@ -26,22 +26,22 @@ var (
 		},
 	}
 	configCmd = &cobra.Command{
-		Use: "config", Aliases: []string{"c"}, Short: "Config",
-	}
-	configTemplateCmd = &cobra.Command{
-		Use: "template json|yaml", Aliases: []string{"t"},
+		Use: "config json|yaml", Aliases: []string{"c"},
 		Short: "Show Config Template",
-		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			configData := viper.AllSettings()
-			delete(configData, "config")
-			delete(configData, "instance")
 			var buf []byte
-			switch args[0] {
-			case "json":
-				buf, _ = json.MarshalIndent(configData, "", "  ")
-			case "yaml", "yml":
-				buf, _ = yaml.Marshal(configData)
+			var config any
+			if registerConfig != nil {
+				config = registerConfig
+			} else {
+				config = viper.AllSettings()
+				viper.Set("config", nil)
+				viper.Set("instance", nil)
+			}
+			if len(args) > 0 && (args[0] == "yaml" || args[0] == "yml") {
+				buf, _ = yaml.Marshal(config)
+			} else {
+				buf, _ = json.MarshalIndent(config, "", "  ")
 			}
 			fmt.Println(string(buf))
 			return nil
@@ -49,14 +49,7 @@ var (
 	}
 )
 
-func init() {
-	configCmd.AddCommand(configTemplateCmd)
-	rootCmd.AddCommand(configCmd)
-}
-
-func (d *Daemon) RegisterConfig(config any) {
-	registerConfig = config
-}
+func (d *Daemon) RegisterConfig(config any) { registerConfig = config }
 
 func (d *Daemon) SetLogger(log *slog.Logger) {
 	d.logger = log.WithGroup("daemon")

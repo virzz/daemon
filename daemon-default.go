@@ -5,6 +5,7 @@ package daemon
 
 import (
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/mitchellh/mapstructure"
@@ -30,6 +31,12 @@ func (d *Daemon) ExecuteE(action ActionFunc) error {
 	if std.logger == nil || std.systemd.logger == nil {
 		std.SetLogger(vlog.Log)
 	}
+	if !slices.ContainsFunc(rootCmd.Commands(),
+		func(cmd *cobra.Command) bool { return cmd.Use == "config" },
+	) {
+		rootCmd.AddCommand(configCmd)
+	}
+
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) (err error) {
 		instance, _ := cmd.Flags().GetString("instance")
 		config, _ := cmd.Flags().GetString("config")
