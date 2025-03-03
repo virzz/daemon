@@ -24,7 +24,7 @@ func (s *Systemd) Command(rootCmd *cobra.Command) {
 	var installCmd = &cobra.Command{
 		GroupID:           "daemon",
 		Use:               "install",
-		Short:             "Install",
+		Short:             "Systemd Install",
 		Aliases:           []string{"i"},
 		PersistentPreRunE: persistentPreRunE,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -36,7 +36,7 @@ func (s *Systemd) Command(rootCmd *cobra.Command) {
 	var removeCmd = &cobra.Command{
 		GroupID:           "daemon",
 		Use:               "remove",
-		Short:             "Remove(Uninstall)",
+		Short:             "Systemd Remove(Uninstall)",
 		Aliases:           []string{"rm", "uninstall", "uni", "un"},
 		PersistentPreRunE: persistentPreRunE,
 		RunE: func(_ *cobra.Command, _ []string) error {
@@ -46,7 +46,7 @@ func (s *Systemd) Command(rootCmd *cobra.Command) {
 	var startCmd = &cobra.Command{
 		GroupID:           "daemon",
 		Use:               "start [tag]...",
-		Short:             "Start",
+		Short:             "Systemd Start",
 		Aliases:           []string{"run"},
 		PersistentPreRunE: persistentPreRunE,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -58,7 +58,7 @@ func (s *Systemd) Command(rootCmd *cobra.Command) {
 	var stopCmd = &cobra.Command{
 		GroupID:           "daemon",
 		Use:               "stop",
-		Short:             "Stop",
+		Short:             "Systemd Stop",
 		PersistentPreRunE: persistentPreRunE,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			all, _ := cmd.Flags().GetBool("all")
@@ -68,7 +68,7 @@ func (s *Systemd) Command(rootCmd *cobra.Command) {
 	var enableCmd = &cobra.Command{
 		GroupID:           "daemon",
 		Use:               "enable",
-		Short:             "Enable",
+		Short:             "Systemd Enable",
 		PersistentPreRunE: persistentPreRunE,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return std.systemd.Enable(args...)
@@ -78,7 +78,7 @@ func (s *Systemd) Command(rootCmd *cobra.Command) {
 	var disableCmd = &cobra.Command{
 		GroupID:           "daemon",
 		Use:               "disable",
-		Short:             "Disable",
+		Short:             "Systemd Disable",
 		PersistentPreRunE: persistentPreRunE,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return std.systemd.Disable(args...)
@@ -88,7 +88,7 @@ func (s *Systemd) Command(rootCmd *cobra.Command) {
 	var restartCmd = &cobra.Command{
 		GroupID:           "daemon",
 		Use:               "restart",
-		Short:             "Restart",
+		Short:             "Systemd Restart",
 		Aliases:           []string{"r", "re"},
 		PersistentPreRunE: persistentPreRunE,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -100,7 +100,7 @@ func (s *Systemd) Command(rootCmd *cobra.Command) {
 	var killCmd = &cobra.Command{
 		GroupID:           "daemon",
 		Use:               "kill",
-		Short:             "Kill",
+		Short:             "Systemd Kill",
 		Aliases:           []string{"k"},
 		PersistentPreRunE: persistentPreRunE,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -112,7 +112,7 @@ func (s *Systemd) Command(rootCmd *cobra.Command) {
 	var reloadCmd = &cobra.Command{
 		GroupID:           "daemon",
 		Use:               "reload",
-		Short:             "Reload",
+		Short:             "Systemd Reload",
 		PersistentPreRunE: persistentPreRunE,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			all, _ := cmd.Flags().GetBool("all")
@@ -123,7 +123,7 @@ func (s *Systemd) Command(rootCmd *cobra.Command) {
 	var statusCmd = &cobra.Command{
 		GroupID:           "daemon",
 		Use:               "status",
-		Short:             "Status",
+		Short:             "Systemd Status",
 		Aliases:           []string{"info", "if"},
 		PersistentPreRunE: persistentPreRunE,
 		RunE: func(_ *cobra.Command, _ []string) error {

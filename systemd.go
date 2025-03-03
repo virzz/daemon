@@ -188,46 +188,43 @@ func (s *Systemd) Stop(all bool, tags ...string) error {
 	return nil
 }
 
+func fileExists(name string) bool {
+	fi, err := os.Stat(name)
+	return err == nil && !fi.IsDir()
+}
+
 // Enable the service
 func (s *Systemd) Enable(tags ...string) (err error) {
-	origin := s.UnitFile(true)
-	target := "/etc/systemd/system/multi-user.target.wants/%s@%s.service"
-	isMulti := true
-	if _, err = os.Stat(origin); err != nil && err == os.ErrNotExist {
-		origin = s.UnitFile(false)
-		if _, err = os.Stat(origin); err != nil && err == os.ErrNotExist {
-			return errors.New("service is not installed")
+	var target string
+	origin := "/etc/systemd/system/" + s.Name + "@.service"
+	if fileExists(origin) {
+		target = "/etc/systemd/system/multi-user.target.wants/%s@%s.service"
+		if len(tags) == 0 {
+			tags = []string{"default"}
 		}
-		isMulti = false
-		target = "/etc/systemd/system/multi-user.target.wants/%s.service"
-	}
-	if isMulti {
-		if len(tags) > 0 {
-			for _, tag := range tags {
-				err = os.Symlink(origin, fmt.Sprintf(target, s.Name, tag))
-				if err != nil {
-					s.logger.Error("Failed to create symlink", "origin", origin, "target", target, "err", err.Error())
-				} else {
-					s.logger.Info(fmt.Sprintf("Created symlink %s -> %s", target, origin))
-				}
-			}
-		} else {
-			err = os.Symlink(origin, fmt.Sprintf(target, s.Name, "default"))
+		for _, tag := range tags {
+			_target := fmt.Sprintf(target, s.Name, tag)
+			err = os.Symlink(origin, _target)
 			if err != nil {
-				s.logger.Error("Failed to create symlink", "origin", origin, "target", target, "err", err.Error())
+				s.logger.Error("Failed to create symlink", "origin", origin, "target", _target, "err", err.Error())
 			} else {
-				s.logger.Info(fmt.Sprintf("Created symlink %s -> %s", target, origin))
+				s.logger.Info(fmt.Sprintf("Created symlink %s -> %s", _target, origin))
 			}
 		}
-	} else {
-		err = os.Symlink(origin, fmt.Sprintf(target, s.Name))
+		return nil
+	}
+	origin = "/etc/systemd/system/" + s.Name + ".service"
+	if fileExists(origin) {
+		target := "/etc/systemd/system/multi-user.target.wants/" + s.Name + ".service"
+		err = os.Symlink(origin, target)
 		if err != nil {
 			s.logger.Error("Failed to create symlink", "origin", origin, "target", target, "err", err.Error())
 		} else {
 			s.logger.Info(fmt.Sprintf("Created symlink %s -> %s", target, origin))
 		}
+		return nil
 	}
-	return nil
+	return errors.New("service is not installed")
 }
 
 // Disable the service
@@ -240,15 +237,15 @@ func (s *Systemd) Disable(tags ...string) (err error) {
 				s.logger.Error("Failed to remove symlink", "target", target, "err", err.Error())
 			}
 		}
-	} else {
-		err = os.Remove(fmt.Sprintf(target, s.Name, "default"))
-		if err != nil {
-			s.logger.Error("Failed to remove symlink", "target", target, "err", err.Error())
-		}
-		err = os.Remove("/etc/systemd/system/multi-user.target.wants/" + s.Name + ".service")
-		if err != nil {
-			s.logger.Error("Failed to remove symlink", "target", target, "err", err.Error())
-		}
+		return nil
+	}
+	err = os.Remove("/etc/systemd/system/multi-user.target.wants/" + s.Name + "@default.service")
+	if err != nil {
+		s.logger.Warn("Failed to remove symlink", "target", target, "err", err.Error())
+	}
+	err = os.Remove("/etc/systemd/system/multi-user.target.wants/" + s.Name + ".service")
+	if err != nil {
+		s.logger.Warn("Failed to remove symlink", "target", target, "err", err.Error())
 	}
 	return nil
 }
