@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"strconv"
 
 	systemd "github.com/coreos/go-systemd/v22/dbus"
@@ -59,9 +60,12 @@ func (s *Systemd) Remove() error {
 	if err != nil {
 		s.logger.Warn(err.Error())
 	}
-	err = os.Remove("/etc/systemd/system/" + s.Name + "@.service")
-	if err != nil {
-		return err
+	errs := []error{
+		os.Remove("/etc/systemd/system/" + s.Name + ".service"),
+		os.Remove("/etc/systemd/system/" + s.Name + "@.service"),
+	}
+	if !slices.Contains(errs, nil) {
+		return errors.New("remove failed")
 	}
 	s.logger.Info("Removed " + s.Name)
 	return nil
