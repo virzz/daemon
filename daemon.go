@@ -16,6 +16,7 @@ type ActionFunc func(cmd *cobra.Command, args []string) error
 
 var (
 	std            *Daemon
+	debug              = false
 	registerConfig any = nil
 	rootCmd            = &cobra.Command{
 		CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
@@ -54,7 +55,10 @@ func (d *Daemon) RegisterConfig(config any) { registerConfig = config }
 func (d *Daemon) SetLogger(log *slog.Logger) {
 	d.logger = log.WithGroup("daemon")
 	d.systemd.logger = log.WithGroup("systemd")
-	viper.WithLogger(log.WithGroup("viper"))
+	if debug {
+		viper.SetOptions(viper.WithLogger(log.WithGroup("viper")))
+		viper.Debug()
+	}
 }
 
 func AddCommand(cmds ...*cobra.Command) { rootCmd.AddCommand(cmds...) }
@@ -62,6 +66,7 @@ func RootCmd() *cobra.Command           { return rootCmd }
 func SetLogger(log *slog.Logger)        { std.SetLogger(log) }
 func RegisterConfig(config any)         { std.RegisterConfig(config) }
 func SetAction(action ActionFunc)       { rootCmd.RunE = action }
+func SetDebug()                         { debug = true }
 
 func Execute(action ActionFunc) {
 	if err := ExecuteE(action); err != nil {
