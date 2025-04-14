@@ -146,7 +146,10 @@ func ExecuteE(action ActionFunc) error {
 	viper.BindPFlags(rootCmd.PersistentFlags())
 	viper.BindPFlags(rootCmd.Flags())
 	viper.SetEnvPrefix(rootCmd.Use)
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.SetEnvKeyReplacer(strings.NewReplacer(
+		".", "_",
+		"-", "_",
+	))
 	viper.AutomaticEnv()
 	if err := rootCmd.Execute(); err != nil {
 		return err
