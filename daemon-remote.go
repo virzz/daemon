@@ -11,7 +11,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"log/slog"
 	"slices"
 	"strings"
 
@@ -19,7 +18,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/virzz/vlog"
+	"go.uber.org/zap"
 )
 
 const (
@@ -36,33 +35,33 @@ xQIDAQAB
 )
 
 type Daemon struct {
-	logger         *slog.Logger
+	logger         *zap.Logger
 	systemd        *Systemd
 	project        string
+	publicKey      string
 	remoteEndpoint string
 	remoteConfig   bool
 	secretKey      []byte
 }
 
-func EnableRemoteConfig(project string, publicKey ...string) error {
-	return std.EnableRemoteConfig(project, publicKey...)
-}
-
-func (d *Daemon) EnableRemoteConfig(project string, publicKey ...string) error {
+func (d *Daemon) EnableRemote(project string, publicKey ...string) error {
 	rootCmd.PersistentFlags().String("remote-type", "json", "Remote config type")
 	rootCmd.PersistentFlags().String("remote-endpoint", "", "Remote config endpoint")
 
-	std.project = project
-	std.remoteConfig = true
-	std.secretKey = make([]byte, 32)
-	io.ReadFull(rand.Reader, std.secretKey)
-
-	var block *pem.Block
+	d.project = project
+	d.remoteConfig = true
 	if len(publicKey) > 0 && publicKey[0] != "" {
-		block, _ = pem.Decode([]byte(publicKey[0]))
+		d.publicKey = publicKey[0]
 	} else {
-		block, _ = pem.Decode([]byte(defaultPublicKey))
+		d.publicKey = defaultPublicKey
 	}
+	return nil
+}
+
+func (d *Daemon) enableRemote() error {
+	d.secretKey = make([]byte, 32)
+	io.ReadFull(rand.Reader, d.secretKey)
+	block, _ := pem.Decode([]byte(d.publicKey))
 	if block == nil || block.Type != "PUBLIC KEY" {
 		return errors.New("Failed to decode PEM block containing public key")
 	}
@@ -71,17 +70,19 @@ func (d *Daemon) EnableRemoteConfig(project string, publicKey ...string) error {
 		return err
 	}
 	if key, ok := pub.(*rsa.PublicKey); ok {
-		data, _ := rsa.EncryptOAEP(sha256.New(), rand.Reader, key, std.secretKey, nil)
-		viper.RemoteConfig = &RemoteProvider{EncryptSecret: data, logger: std.logger.WithGroup("remote")}
+		data, _ := rsa.EncryptOAEP(sha256.New(), rand.Reader, key, d.secretKey, nil)
+		viper.RemoteConfig = &RemoteProvider{EncryptSecret: data, logger: d.logger.Named("remote")}
 		viper.SupportedRemoteProviders = append(viper.SupportedRemoteProviders, "virzz")
 		return nil
 	}
 	return errors.New("not an RSA public key")
 }
 
-func ExecuteE(action ActionFunc) error {
-	if std.logger == nil || std.systemd.logger == nil {
-		std.SetLogger(vlog.Log)
+func (d *Daemon) ExecuteE(action ActionFunc) error {
+	if d.remoteConfig {
+		if err := d.enableRemote(); err != nil {
+			return err
+		}
 	}
 	if !slices.ContainsFunc(rootCmd.Commands(),
 		func(cmd *cobra.Command) bool { return cmd.Use == "config" },
@@ -100,22 +101,22 @@ func ExecuteE(action ActionFunc) error {
 		}
 
 		configLoaded := false
-		if std.remoteConfig {
+		if d.remoteConfig {
 			remoteEndpoint, _ := cmd.Flags().GetString("remote-endpoint")
 			if remoteEndpoint == "" {
-				remoteEndpoint = std.remoteEndpoint
+				remoteEndpoint = d.remoteEndpoint
 			}
 			if remoteEndpoint == "" {
 				remoteEndpoint = defaultRemoteEndpoint
 			}
-			key := fmt.Sprintf("/%s/%s/%s/%s", std.project, std.systemd.AppID, std.systemd.Version, instance)
-			err = viper.AddSecureRemoteProvider("virzz", remoteEndpoint, key, string(std.secretKey))
+			key := fmt.Sprintf("/%s/%s/%s/%s", d.project, d.systemd.AppID, d.systemd.Version, instance)
+			err = viper.AddSecureRemoteProvider("virzz", remoteEndpoint, key, string(d.secretKey))
 			if err != nil {
-				std.logger.Warn("Failed to add remote config provider", "err", err.Error())
+				d.logger.Warn("Failed to add remote config provider", zap.Error(err))
 			} else {
 				err = viper.ReadRemoteConfig()
 				if err != nil {
-					std.logger.Warn("Failed to load remote config", "err", err.Error())
+					d.logger.Warn("Failed to load remote config", zap.Error(err))
 				} else {
 					configLoaded = true
 				}
@@ -134,7 +135,7 @@ func ExecuteE(action ActionFunc) error {
 				dc.TagName = "json"
 			})
 			if err != nil {
-				vlog.Error("Failed to unmarshal register config", "err", err.Error())
+				d.logger.Error("Failed to unmarshal register config", zap.Error(err))
 				return err
 			}
 		}

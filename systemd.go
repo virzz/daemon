@@ -4,16 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"slices"
 	"strconv"
 
 	systemd "github.com/coreos/go-systemd/v22/dbus"
+	"go.uber.org/zap"
 )
 
 type Systemd struct {
-	logger      *slog.Logger
+	logger      *zap.Logger
 	Name        string
 	Description string
 	Version     string
@@ -41,7 +41,7 @@ func (s *Systemd) Install(multi bool, args ...string) error {
 	name := s.UnitFile(multi)
 	err = os.WriteFile(name, buf, 0644)
 	if err != nil {
-		s.logger.Error("Failed to write unit file", "name", name, "err", err.Error())
+		s.logger.Error("Failed to write unit file", zap.String("name", name), zap.Error(err))
 		return err
 	}
 	ctx := context.Background()
@@ -210,9 +210,9 @@ func (s *Systemd) Enable(tags ...string) (err error) {
 			_target := fmt.Sprintf(target, s.Name, tag)
 			err = os.Symlink(origin, _target)
 			if err != nil {
-				s.logger.Error("Failed to create symlink", "origin", origin, "target", _target, "err", err.Error())
+				s.logger.Error("Failed to create symlink", zap.String("origin", origin), zap.String("target", _target), zap.Error(err))
 			} else {
-				s.logger.Info(fmt.Sprintf("Created symlink %s -> %s", _target, origin))
+				s.logger.Info("Created symlink", zap.String("target", _target), zap.String("origin", origin))
 			}
 		}
 		return nil
@@ -222,9 +222,9 @@ func (s *Systemd) Enable(tags ...string) (err error) {
 		target := "/etc/systemd/system/multi-user.target.wants/" + s.Name + ".service"
 		err = os.Symlink(origin, target)
 		if err != nil {
-			s.logger.Error("Failed to create symlink", "origin", origin, "target", target, "err", err.Error())
+			s.logger.Error("Failed to create symlink", zap.String("origin", origin), zap.String("target", target), zap.Error(err))
 		} else {
-			s.logger.Info(fmt.Sprintf("Created symlink %s -> %s", target, origin))
+			s.logger.Info("Created symlink", zap.String("target", target), zap.String("origin", origin))
 		}
 		return nil
 	}
@@ -238,18 +238,18 @@ func (s *Systemd) Disable(tags ...string) (err error) {
 		for _, tag := range tags {
 			err = os.Remove(fmt.Sprintf(target, s.Name, tag))
 			if err != nil {
-				s.logger.Error("Failed to remove symlink", "target", target, "err", err.Error())
+				s.logger.Error("Failed to remove symlink", zap.String("target", target), zap.Error(err))
 			}
 		}
 		return nil
 	}
 	err = os.Remove("/etc/systemd/system/multi-user.target.wants/" + s.Name + "@default.service")
 	if err != nil {
-		s.logger.Warn("Failed to remove symlink", "target", target, "err", err.Error())
+		s.logger.Warn("Failed to remove symlink", zap.String("target", target), zap.Error(err))
 	}
 	err = os.Remove("/etc/systemd/system/multi-user.target.wants/" + s.Name + ".service")
 	if err != nil {
-		s.logger.Warn("Failed to remove symlink", "target", target, "err", err.Error())
+		s.logger.Warn("Failed to remove symlink", zap.String("target", target), zap.Error(err))
 	}
 	return nil
 }
@@ -419,9 +419,9 @@ func (s *Systemd) Status(show bool) ([]systemd.UnitStatus, error) {
 	if show {
 		for _, item := range items {
 			if item.SubState == "running" {
-				s.logger.Info(item.Name, item.ActiveState, item.SubState)
+				s.logger.Info("Status", zap.String("name", item.Name), zap.String("active", item.ActiveState), zap.String("sub", item.SubState))
 			} else {
-				s.logger.Warn(item.Name, item.ActiveState, item.SubState)
+				s.logger.Warn("Status", zap.String("name", item.Name), zap.String("active", item.ActiveState), zap.String("sub", item.SubState))
 			}
 		}
 	}

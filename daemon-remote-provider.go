@@ -8,12 +8,12 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 func padding(src []byte, blockSize int) []byte {
@@ -44,7 +44,7 @@ type RemoteProvider struct {
 	viper.RemoteProvider
 	EncryptSecret []byte
 	TargetURL     string
-	logger        *slog.Logger
+	logger        *zap.Logger
 }
 
 func (c *RemoteProvider) Get(rp viper.RemoteProvider) (io.Reader, error) {
@@ -66,11 +66,12 @@ func (c *RemoteProvider) Get(rp viper.RemoteProvider) (io.Reader, error) {
 	// Get remote config
 	rsp, err := http.Post(c.TargetURL, "application/object-stream", bytes.NewBuffer(c.EncryptSecret))
 	if err != nil {
-		c.logger.Error("Failed to request remote", "err", err.Error())
+		c.logger.Error("Failed to request remote", zap.Error(err))
 		return nil, err
 	}
 	defer rsp.Body.Close()
 	if rsp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, rsp.Body)
 		return nil, errors.Errorf("Failed to get remote config: %s", rsp.Status)
 	}
 	buf, err := io.ReadAll(rsp.Body)

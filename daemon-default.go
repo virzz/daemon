@@ -4,33 +4,25 @@
 package daemon
 
 import (
-	"log/slog"
 	"slices"
 	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/virzz/vlog"
+	"go.uber.org/zap"
 )
 
 type Daemon struct {
-	logger  *slog.Logger
+	logger  *zap.Logger
 	systemd *Systemd
 }
 
-func EnableRemoteConfig(project string, publicKey ...string) error {
-	return std.EnableRemoteConfig(project, publicKey...)
-}
-
-func (d *Daemon) EnableRemoteConfig(project string, publicKey ...string) error {
+func (d *Daemon) EnableRemote(project string, publicKey ...string) error {
 	panic("remote config build with remote tag")
 }
 
 func (d *Daemon) ExecuteE(action ActionFunc) error {
-	if std.logger == nil || std.systemd.logger == nil {
-		std.SetLogger(vlog.Log)
-	}
 	if !slices.ContainsFunc(rootCmd.Commands(),
 		func(cmd *cobra.Command) bool { return cmd.Use == "config" },
 	) {
@@ -52,7 +44,7 @@ func (d *Daemon) ExecuteE(action ActionFunc) error {
 			viper.SetConfigType("yaml")
 			err = viper.ReadInConfig()
 			if err != nil {
-				vlog.Warn("Failed to read in config", "err", err.Error())
+				d.logger.Warn("Failed to read in config", zap.Error(err))
 			}
 		}
 		if registerConfig != nil {
@@ -60,7 +52,7 @@ func (d *Daemon) ExecuteE(action ActionFunc) error {
 				dc.TagName = "json"
 			})
 			if err != nil {
-				vlog.Error("Failed to unmarshal register config", "err", err.Error())
+				d.logger.Error("Failed to unmarshal register config", zap.Error(err))
 				return err
 			}
 		}
@@ -79,8 +71,4 @@ func (d *Daemon) ExecuteE(action ActionFunc) error {
 		return err
 	}
 	return nil
-}
-
-func ExecuteE(action ActionFunc) error {
-	return std.ExecuteE(action)
 }

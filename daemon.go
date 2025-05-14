@@ -7,8 +7,10 @@ import (
 	"os"
 	"strings"
 
+	slogzap "github.com/samber/slog-zap/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -52,21 +54,36 @@ var (
 
 func (d *Daemon) RegisterConfig(config any) { registerConfig = config }
 
-func (d *Daemon) SetLogger(log *slog.Logger) {
-	d.logger = log.WithGroup("daemon")
-	d.systemd.logger = log.WithGroup("systemd")
+func (d *Daemon) SetLogger(zlog *zap.Logger) {
+	d.logger = zlog.Named("daemon")
+	d.systemd.logger = d.logger.Named("systemd")
 	if debug {
-		viper.SetOptions(viper.WithLogger(log.WithGroup("viper")))
+		viper.SetOptions(viper.WithLogger(
+			slog.New(slogzap.Option{
+				Level:  slog.LevelDebug,
+				Logger: d.logger.Named("viper"),
+			}.NewZapHandler()),
+		))
 		viper.Debug()
 	}
 }
 
 func AddCommand(cmds ...*cobra.Command) { rootCmd.AddCommand(cmds...) }
 func RootCmd() *cobra.Command           { return rootCmd }
-func SetLogger(log *slog.Logger)        { std.SetLogger(log) }
+func SetLogger(log *zap.Logger)         { std.SetLogger(log) }
 func RegisterConfig(config any)         { std.RegisterConfig(config) }
 func SetAction(action ActionFunc)       { rootCmd.RunE = action }
 func SetDebug()                         { debug = true }
+func EnableRemote(project string, publicKey ...string) error {
+	return std.EnableRemote(project, publicKey...)
+}
+
+func ExecuteE(action ActionFunc) error {
+	if std.logger == nil || std.systemd.logger == nil {
+		std.SetLogger(zap.L())
+	}
+	return std.ExecuteE(action)
+}
 
 func Execute(action ActionFunc) {
 	if err := ExecuteE(action); err != nil {

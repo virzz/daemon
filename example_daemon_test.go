@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 
 	"github.com/virzz/daemon/v2"
-	"github.com/virzz/vlog"
 )
 
 const (
@@ -52,9 +52,9 @@ func Action(cmd *cobra.Command, args []string) error {
 }
 
 func Example() {
+	log, _ := zap.NewDevelopment()
 	daemon.New(appID, name, description, Version, Commit)
-	vlog.New("test.log")
-	daemon.SetLogger(vlog.Log)
+	daemon.SetLogger(log)
 
 	// daemon.EnableRemoteConfig("test")
 

@@ -1,8 +1,10 @@
 .PHONY: example
 example: clean
-	go build -o default.out ./example/default
-	go build -tags remote -o remote.out ./example/remote
-	ls -al *.out
+	env
+	mkdir -p ./build && cd ./build && \
+	go build ../example/default && \
+	go build -tags remote ../example/remote && \
+	ls -al ./
 
-clean: *.out
-	rm -f *.out
+clean:
+	rm -f ./build/*

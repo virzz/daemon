@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/virzz/daemon/v2"
+	"go.uber.org/zap"
 )
 
 const (
@@ -25,8 +26,10 @@ func Action(cmd *cobra.Command, args []string) error {
 }
 
 func main() {
+	zlog, _ := zap.NewProduction()
+	zap.ReplaceGlobals(zlog)
 	daemon.New(AppID, Name, Description, Version, Commit)
-	daemon.EnableRemoteConfig("test")
+	daemon.EnableRemote("test")
 	if err := daemon.ExecuteE(Action); err != nil {
 		fmt.Println("Error: ", err)
 		os.Exit(1)

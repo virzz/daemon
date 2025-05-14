@@ -1,16 +1,15 @@
 module github.com/virzz/daemon/v2
 
-go 1.21.6
-
-// replace github.com/mitchellh/mapstructure => github.com/go-viper/mapstructure v1.6.0
+go 1.24.1
 
 require (
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/go-viper/mapstructure/v2 v2.2.1
 	github.com/pkg/errors v0.9.1
+	github.com/samber/slog-zap/v2 v2.6.2
 	github.com/spf13/cobra v1.8.1
-	github.com/spf13/viper v1.20.0
-	github.com/virzz/vlog v0.0.0-20240402104127-a8c808c845a2
+	github.com/spf13/viper v1.20.1
+	go.uber.org/zap v1.27.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -20,6 +19,8 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
+	github.com/samber/lo v1.47.0 // indirect
+	github.com/samber/slog-common v0.18.1 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
